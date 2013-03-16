@@ -1,0 +1,19 @@
+
+ffindr2GoogleCalendar reads ffindr RSS feeds and creates and updates Google
+calendars with the events from the feeds.
+
+ffindr is one of the biggest frisbee tournament portals on the web:
+www.ffindr.com.
+
+
+
+How it works:
+
+updateAllGoogleCalendars.py reads the configuration file
+google-calendar.json and calls the other scripts.
+
+See 'updateAllGoogleCalendars.py -h' for usage descriptions.
+
+The scripts use the Google Data Protocol (GData -
+https://code.google.com/p/gdata-python-client) for manipulating the Google
+calendars.
