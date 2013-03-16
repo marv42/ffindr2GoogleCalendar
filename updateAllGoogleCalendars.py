@@ -21,25 +21,24 @@ from xml.dom.minidom import parse
 
 
 class UpdateAllGoogleCalendars:
-    
+
     def __init__(self):
         self.verboseMode = False
 
     def SetVerboseMode(self):
         self.verboseMode = True
-    
+
 
     def Run(self):
         """Get all ffindr hashes from ffindr and call updateOneGoogleCalendar
         for each of them"""
-        
-        inputXml = 'http://ffindr.com/google-calendar-xml/'
-        inputXml = os.path.dirname(os.path.abspath(__file__)) + '/google-calendar-xml'
 
-        
+        inputXml = os.path.dirname(os.path.abspath(__file__)) + '/google-calendar.xml'
+
+
         # parse the content of the ffindr RSS stream
         ############################################
-        
+
         if self.verboseMode:
             print "Input XML: ", inputXml
 
@@ -51,8 +50,8 @@ class UpdateAllGoogleCalendars:
         #if self.verboseMode:
         #    print "Handle: ", f
         dom = parse(f)
-        
-        
+
+
         # for all calendars
         ###################
 
@@ -66,38 +65,38 @@ class UpdateAllGoogleCalendars:
                         filterName = filterNode.attributes.item(i).value
                     if filterNode.attributes.item(i).name == "hash":
                         filterHash = filterNode.attributes.item(i).value
-                
+
                 if self.verboseMode:
                     print "Calling CreateAndUpdateGoogleCalendar on '", filterName, "' with hash", filterHash, "..."
 
                 createAndUpdate = CreateAndUpdateGoogleCalendar(filterHash)
-            
+
                 if self.verboseMode:
                     createAndUpdate.SetVerboseMode()
 
                 returnJson = simplejson.loads(createAndUpdate.Run())
                 #print returnJson
-                
+
                 if returnJson['error'] == 'NULL':
                     if self.verboseMode:
                         print "... successfully updated                          *** O.k. ***"
-                
+
                 else:
                     if self.verboseMode:
                         print "... failed, waiting one minute ..."
-                        
+
                     # wait one minute and try again
                     ###############################
-                    
+
                     t = datetime.datetime.now()
                     while t + datetime.timedelta(0,0,0,0,1) > datetime.datetime.now():
                         continue
-                    
+
                     if self.verboseMode:
                         print "... trying once more ..."
 
                     returnJson = simplejson.loads(createAndUpdate.Run())
-                
+
                     if not returnJson['error'] == 'NULL':
                         if self.verboseMode:
                             print "... failed"
@@ -113,32 +112,32 @@ def Usage():
 
 def main():
     """Runs the application."""
-    
+
     try:
         opts, args = getopt.getopt(sys.argv[1:], "htv")
     except getopt.GetoptError:
         print "Unknown option"
         Usage()
         sys.exit(1)
-    
+
     if not len(args) == 0:
         print "Wrong number of arguments"
         Usage()
         sys.exit(1)
-    
-    
+
+
     mainObject = UpdateAllGoogleCalendars()
-    
-    
+
+
     for o, a in opts:
         if o in ("-v"):
             mainObject.SetVerboseMode()
-            
+
         if o in ("-h", "--help"):
             Usage()
             sys.exit()
 
-    
+
     mainObject.Run()
 
 
