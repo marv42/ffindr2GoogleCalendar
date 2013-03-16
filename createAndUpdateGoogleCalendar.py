@@ -31,6 +31,7 @@ import atom.service
 import gdata.calendar
 import atom
 import getopt
+import logging
 import sys
 import string
 import time
@@ -50,8 +51,8 @@ import simplejson
 class FfindrChannelContentHandler(ContentHandler):
 
     def __init__(self):
-        self.inChannelContent     = True
-        self.inTitleContent       = False
+        self.inChannelContent = True
+        self.inTitleContent   = False
 
     def startElement(self, name, attrs):
         if name == 'item':
@@ -97,9 +98,9 @@ class CreateAndUpdateGoogleCalendar:
         installed applications and not for multi-user web applications."""
 
         # build source string
-        command = 'grep "^# .Id: " ' + __file__ + ' | awk \'$4 ~ /[0-9]+/ {print $4}\''
+        command = 'grep "^# .Id: " %s | awk \'$4 ~ /[0-9]+/ {print $4}\'' % __file__
         version = os.popen(command).read()
-        source = 'marvin-createAndUpdateGoogleCalendar-v' + str(version)
+        source = 'marvin-createAndUpdateGoogleCalendar-v %s' % str(version)
 
         self.calClient = gdata.calendar.service.CalendarService()
         self.calClient.email = 'wfdiscf@gmail.com'
@@ -111,8 +112,10 @@ class CreateAndUpdateGoogleCalendar:
         self.ffindrHash      = ffindrHash
         self.calendarTitle   = 'no Title'
         self.calendarId      = -1
-        self.verboseMode     = False
         self.debugMode       = False
+        logging.basicConfig(format='[%(filename)s] %(message)s')
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.WARNING)
 
     def _InsertCalendar(self,
                         title='Standard ffindr Stream Calendar Title',
@@ -123,7 +126,7 @@ class CreateAndUpdateGoogleCalendar:
                         color='#2952A3'):
         """Creates a new calendar using the specified data."""
 
-        description = 'This calendar is generated automatically from the ffindr RSS stream "' + title + '" (' + self.ffindrStreamUrl + ').\n\nIf you want your tournament to be listed here, enter it to ffindr.\n\nffindr is one of the biggest frisbee tournament portals on the web: www.ffindr.com'
+        description = 'This calendar is generated automatically from the ffindr RSS stream "%s" (%s).\n\nIf you want your tournament to be listed here, enter it to ffindr.\n\nffindr is one of the biggest frisbee tournament portals on the web: www.ffindr.com' % (title, self.ffindrStreamUrl)
 
         colorlist = ("#0D7813", "#1B887A", "#29527A", "#2952A3", "#28754E", "#4A716C", "#4E5D6C", "#5229A3", "#528800", "#5A6986", "#6E6E41", "#705770", "#7A367A", "#865A5A", "#88880E", "#8D6F47", "#A32929", "#AB8B00", "#B1365F", "#B1440E", "#BE6D00")
         randomColor = colorlist[random.randrange(len(colorlist))]
@@ -169,13 +172,13 @@ class CreateAndUpdateGoogleCalendar:
         rule.scope = gdata.calendar.Scope(scope_type='default') # all users, no value
         roleValue = 'http://schemas.google.com/gCal/2005#read'
         rule.role = gdata.calendar.Role(value=roleValue)
-        aclUrl = 'http://www.google.com/calendar/feeds/' + self.calendarId + '/acl/full'
-        #aclUrl = '/calendar/feeds/' + self.calendarId + '/acl/full'
+        aclUrl = 'http://www.google.com/calendar/feeds/%s/acl/full' % self.calendarId
+        #aclUrl = '/calendar/feeds/%s/acl/full' % self.calendarId
         returned_rule = self.calClient.InsertAclEntry(rule, aclUrl)
 
 
     def SetVerboseMode(self):
-        self.verboseMode = True
+        self.logger.setLevel(logging.INFO)
 
     def SetDebugMode(self):
         self.debugMode = True
@@ -203,12 +206,8 @@ class CreateAndUpdateGoogleCalendar:
         successful or not. If not, we assume it to be successful on the next
         update of the calendar."""
 
-        if self.verboseMode:
-            print ">>>\n>>>", os.path.basename(__file__), "\n>>>"
-
         if self.ffindrHash == '':
-            if self.verboseMode:
-                print "No ffindr hash given"
+            self.logging.error("No ffindr hash given")
             return simplejson.dumps({'result': 'NULL', 'error': 'No ffindr hash given'})
 
 
@@ -218,8 +217,7 @@ class CreateAndUpdateGoogleCalendar:
         ffindrPrefix = 'http://ffindr.com/en/feed/filter/'
         self.ffindrStreamUrl = ffindrPrefix + self.ffindrHash
 
-        if self.verboseMode:
-            print "URL with given hash:", self.ffindrStreamUrl
+        self.logger.info(self.ffindrStreamUrl)
 
         if self.debugMode:
             # raw XML:
@@ -286,9 +284,8 @@ class CreateAndUpdateGoogleCalendar:
             # try to create new calendar
             ############################
 
-            if self.verboseMode:
-                print "... calendar is not yet a Google calendar"
-                print "Trying to create the calendar ..."
+            #self.logger.info("... calendar is not yet a Google calendar")
+            self.logger.info("trying to create the Google calendar ...")
 
             try:
                 newCalendar = self._InsertCalendar(title=calendarTitle)
@@ -318,8 +315,7 @@ class CreateAndUpdateGoogleCalendar:
             except:
                 return simplejson.dumps({'result': 'NULL', 'error': 'Google connectivity problems'})
 
-            if self.verboseMode:
-                print "... successful"
+            self.logger.info("... successful")
 
             self.calendarId = newCalendar.id.text
 
@@ -331,13 +327,11 @@ class CreateAndUpdateGoogleCalendar:
                 self.calendarId = self.calendarId[len(googlePrefix):len(self.calendarId)]
 
             else:
-                if self.verboseMode:
-                    print "Error stripping prefix"
+                self.logger.error("error stripping prefix")
                 return simplejson.dumps({'result': 'NULL', 'error': 'Couldn\'t determine the calendar ID from the URL (error stripping prefix)'})
                 # because we wouldn't be able to set the permissions with this ID
 
-            if self.verboseMode:
-                print "Setting permissions / make calendar public ..."
+            self.logger.info("setting permissions / make calendar public ...")
 
             self._CreateAclRule() # make calendar public
             #self._CreateAclRule("user@gmail.com")
@@ -358,19 +352,14 @@ class CreateAndUpdateGoogleCalendar:
 
         updateObject = UpdateOneGoogleCalendar(self.ffindrStreamUrl)
 
-        if self.verboseMode:
-            print "Calling updateOneGoogleCalendar with URL", self.ffindrStreamUrl, "(debug with 'updateOneGoogleCalendar.py -v -t", self.ffindrStreamUrl, "')"
+        if self.logger.isEnabledFor(logging.INFO):
             updateObject.SetVerboseMode()
 
         updateSuccessful = updateObject.Run()
+        self.logger.info("(debug with: 'updateOneGoogleCalendar.py -v -t %s')" % self.ffindrStreamUrl)
         if not updateSuccessful == 0:
-            if self.verboseMode:
-                print "... failed"
-                print "<<<\n<<<", os.path.basename(__file__), "\n<<<"
+            self.logger.info("... failed")
             return simplejson.dumps({'result': 'NULL', 'error': 'Creation successful but updating failed'})
-
-        if self.verboseMode:
-            print "<<<\n<<<", os.path.basename(__file__), ": O.k.\n<<<"
 
 
         # get the calendar URL
@@ -381,7 +370,7 @@ class CreateAndUpdateGoogleCalendar:
 
 
 def Usage():
-    print "Usage :", os.path.basename(__file__), "[-d] [-v] <ffindr hash>"
+    print "Usage : %s [-d] [-v] <ffindr hash>" % os.path.basename(__file__)
     print
     print "Available hashes:"
 

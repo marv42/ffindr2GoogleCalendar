@@ -17,25 +17,26 @@
 
 #     You should have received a copy of the GNU General Public License
 #     along with this program.  If not, see <http://www.gnu.org/licenses/>.
-    
-__author__ = 'stefanhorter@gmail.com'
+
+__author__ = 'marv42@gmail.com'
 
 
 try:
     from xml.etree import ElementTree
 except ImportError:
     from elementtree import ElementTree
-import gdata.calendar.service
-import gdata.service
+import atom
 import atom.service
 import gdata.calendar
-import atom
+import gdata.calendar.service
+import gdata.service
 import getopt
-import sys
+import logging
 import os
-import re
-import urllib
 import pdb
+import re
+import sys
+import urllib
 
 
 
@@ -53,57 +54,55 @@ class ffindrHash2GoogleId:
         http://code.google.com/apis/accounts/AuthForInstalledApps.html for
         more info on ClientLogin.  NOTE: ClientLogin should only be used for
         installed applications and not for multi-user web applications."""
-        
+
         # build source string
-        command = 'grep "^# .Id: " ' + __file__ + ' | awk \'$4 ~ /[0-9]+/ {print $4}\''
+        command = 'grep "^# .Id: " %s | awk \'$4 ~ /[0-9]+/ {print $4}\'' % __file__
         version = os.popen(command).read()
-        source = 'marvin-ffindrHash2GoogleId-v' + str(version)
-                
+        source = 'marvin-ffindrHash2GoogleId-v %s' % str(version)
+
         self.calClient = gdata.calendar.service.CalendarService()
         self.calClient.email = 'wfdiscf@gmail.com'
         self.calClient.password = '6009l3wfd15cf'
         self.calClient.source = source
         self.calClient.ProgrammaticLogin()
-        
-        self.verboseMode     = False
+
+        logging.basicConfig(format='[%(filename)s] %(message)s')
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.WARNING)
         self.inputFfindrHash = ffindrHash
-        
-    
+
+
     def SetVerboseMode(self):
-        self.verboseMode = True
-    
-    
+        self.logger.setLevel(logging.INFO)
+
+
     def Run(self):
         """Takes a ffindr RSS stream URL or a stream hash as an argument.
 
         Returns the calendar ID or '' if no ID found matching the hash or
         if some error occurred"""
-        
-        if self.verboseMode:
-            print ">>>\n>>>", os.path.basename(__file__), "\n>>>"
-        
-        if self.verboseMode:
-            print "Given ffindr hash:", self.inputFfindrHash
-        
-        
+
+        self.logger.info(self.inputFfindrHash)
+
+
         # search the hash in all calendars
         ##################################
-        
+
         try:
             allCalendarsFeed = self.calClient.GetOwnCalendarsFeed()
             # GetOwnCalendarsFeed instead of GetAllCalendarsFeed gets secondary calendars only
             #print allCalendarsFeed; sys.exit(0)
-        
+
         except gdata.service.RequestError, err:
             print err[0]['status']
             print err[0]['body']
             print err[0]['reason']
             return ''
-        
+
         except:
             print "error"
             return ''
-        
+
         patternHash = re.compile(self.inputFfindrHash)
 
         calendarId = ''
@@ -111,57 +110,54 @@ class ffindrHash2GoogleId:
         for entry in allCalendarsFeed.entry:
             if patternHash.search(str(entry.summary)):
                 calendarId = urllib.unquote(entry.id.text.split('/').pop())
-                if self.verboseMode:
-                    print "... found calendar, ID:", calendarId
+                self.logger.info("-> %s" % calendarId)
                 break
-        
-        if self.verboseMode:
-            if calendarId == '':
-                print "No calendar found with this ffindr hash"
-            print "<<<\n<<<", os.path.basename(__file__), ": return\n<<<"
+
+        if calendarId == '':
+            self.logger.warning("No calendar found with this ffindr hash")
 
         return calendarId
 
 
 
 def Usage():
-    print "Usage :", os.path.basename(__file__), "[-v] <ffindr hash>"
+    print "Usage : %s [-v] <ffindr hash>" % os.path.basename(__file__)
 
 
 
 def main():
     """Runs the application."""
-    
+
     # get parameter
     ###############
-    
+
     try:
         opts, args = getopt.getopt(sys.argv[1:], "hv")
     except getopt.GetoptError:
         print "Unknown option"
         Usage()
         sys.exit(1)
-    
+
     if not len(args) == 1:
         print "Wrong number of arguments"
         Usage()
         sys.exit(1)
-        
+
     mainObject = ffindrHash2GoogleId(args[0])
-    
-    
+
+
     for o, a in opts:
         if o in ("-h", "--help"):
             Usage()
             sys.exit()
-        
+
         if o in ("-v"):
             mainObject.SetVerboseMode()
-            
+
     if not len(args) == 1:
         sys.exit(1)
-    
-    
+
+
     mainObject.Run()
 
 

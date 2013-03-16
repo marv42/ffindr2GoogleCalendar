@@ -25,22 +25,22 @@ try:
     from xml.etree import ElementTree # for Python 2.5 users
 except ImportError:
     from elementtree import ElementTree
-import gdata.calendar.service
-import gdata.service
-import atom.service
-import gdata.calendar
-import atom
-import getopt
-import sys
-import datetime
-import time
-import posix
-import os
-import re
-import urllib2
-from xml.dom.minidom import parse
 from ffindrHash2GoogleId import ffindrHash2GoogleId
 from utils import unHtmlify
+from xml.dom.minidom import parse
+import atom
+import datetime
+import gdata.calendar
+import gdata.calendar.service
+import gdata.service
+import getopt
+import logging
+import os
+import posix
+import re
+import sys
+import time
+import urllib2
 
 
 
@@ -60,9 +60,9 @@ class UpdateOneGoogleCalendar:
         installed applications and not for multi-user web applications."""
 
         # build source string
-        command = 'grep "^# .Id: " ' + __file__ + ' | awk \'$4 ~ /[0-9]+/ {print $4}\''
+        command = 'grep "^# .Id: " %s | awk \'$4 ~ /[0-9]+/ {print $4}\'' % __file__
         version = os.popen(command).read()
-        source = 'marvin-updateOneGoogleCalendar-v' + str(version)
+        source = 'marvin-updateOneGoogleCalendar-v %s' % str(version)
 
         self.calClient = gdata.calendar.service.CalendarService()
         self.calClient.email = 'wfdiscf@gmail.com'
@@ -70,8 +70,10 @@ class UpdateOneGoogleCalendar:
         self.calClient.source = source
         self.calClient.ProgrammaticLogin()
 
-        self.verboseMode    = False
-        self.testingMode    = False
+        logging.basicConfig(format='[%(filename)s] %(message)s')
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.WARNING)
+        self.testingMode = False
         self.inputFfindrUrl = ffindrUrl
 
 
@@ -119,7 +121,7 @@ class UpdateOneGoogleCalendar:
 
 
     def SetVerboseMode(self):
-        self.verboseMode = True
+        self.logger.setLevel(logging.INFO)
 
     def SetTestingMode(self):
         self.testingMode = True
@@ -145,9 +147,6 @@ class UpdateOneGoogleCalendar:
         103 = error: unknown ffindr stream URL
         104 = error: parse error, inconsistent amount of elements"""
 
-        if self.verboseMode:
-            print ">>>\n>>>", __name__, "\n>>>"
-
 
         # prepend prefix
         ################
@@ -161,8 +160,7 @@ class UpdateOneGoogleCalendar:
             file("contentOfInputFfindrUrl.xml", 'w').write(sock.read())
             sock.close()
 
-        if self.verboseMode:
-            print "Given ffindr stream URL:", self.inputFfindrUrl
+        self.logger.info(self.inputFfindrUrl)
 
 
         # get calendar query object
@@ -170,18 +168,16 @@ class UpdateOneGoogleCalendar:
 
         idDetermination = ffindrHash2GoogleId(self.inputFfindrUrl)
 
-        if self.verboseMode:
+        if self.logger.isEnabledFor(logging.INFO):
             idDetermination.SetVerboseMode()
 
         self.calendarId = idDetermination.Run()
 
         if self.calendarId == '':
-            if self.verboseMode:
-                print "Error getting calendar ID"
+            self.logger.error("error getting calendar ID")
             return 102
 
-        if self.verboseMode:
-            print "Got calendar ID:", self.calendarId #, "=> URL"
+        self.logger.info(self.calendarId) #, "=> URL"
 
         eventQuery = gdata.calendar.service.CalendarEventQuery(self.calendarId)
 
@@ -195,12 +191,8 @@ class UpdateOneGoogleCalendar:
             calendarQuery = self.calClient.CalendarQuery(eventQuery)
 
         except gdata.service.RequestError, err:
-            if self.verboseMode:
-                print "Error reading calendar", self.calendarId, ":", err
+            self.logger.error("Error reading calendar %s: %s" % (self.calendarId, err))
             return 102
-
-        if self.verboseMode:
-            print "Got calendar query object"
 
 
         # parse the content of the ffindr RSS stream
@@ -257,8 +249,7 @@ class UpdateOneGoogleCalendar:
 
                 if title == '<incomplete>':
                     failedUpdates += 1
-                    if self.verboseMode:
-                        print "Update of one event failed because it was incomplete"
+                    self.logger.warning("Update of one event failed because it was incomplete")
                     continue
 
                 # strip
@@ -323,8 +314,7 @@ class UpdateOneGoogleCalendar:
                     locationForDescription = locationForDescription.replace(')', u'')
                     locationForWhere = geoLat + u', ' + geoLong + u' (' + locationForDescription + u')'
 
-                if self.verboseMode:
-                    print "Updating event '", title.encode('utf-8'), "' (", locationForDescription.encode('utf-8'), ")..."
+                self.logger.info("event '%s'" % title.encode('utf-8'))
 
                 # check if event already exists
                 ###############################
@@ -338,16 +328,14 @@ class UpdateOneGoogleCalendar:
                         break
 
                 if eventIsAlreadyInCalendar:
-                    if self.verboseMode:
-                        print "... event was already in the calendar"
+                    #self.logger.info("... was already in the calendar")
                     continue
 
 
                 # insert event
                 ##############
 
-                if self.verboseMode:
-                    print "... ***** NEW EVENT *****, inserting event"
+                self.logger.info("***** NEW *****")
 
                 #print type(Title); return
                 successful = False
@@ -362,16 +350,12 @@ class UpdateOneGoogleCalendar:
                         successful = True
                     except gdata.service.RequestError, err:
                         i+=1
-                        if self.verboseMode:
-                            print "Error inserting event ('%s'). Trying once more (%i/%i)..." % (str(err), i, howManyTimes)
+                        self.logger.error("Error inserting event ('%s'). Trying once more (%i/%i)..." % (str(err), i, howManyTimes))
                         time.sleep(120)
 
 
         # delete duplicate events
         #########################
-
-        if self.verboseMode:
-            print "Checking for duplicate events..."
 
         eventQuery.max_results = 500
 
@@ -379,12 +363,10 @@ class UpdateOneGoogleCalendar:
             calendarQuery = self.calClient.CalendarQuery(eventQuery)
 
         except gdata.service.RequestError, err:
-            if self.verboseMode:
-                print "Error reading calendar", self.calendarId
+            self.logger.error("Error reading calendar %s" % self.calendarId)
             return 102
 
-        if self.verboseMode:
-            print "Got calendar query object"
+        #self.logger.info("got calendar query object")
 
         deletedEvents = 0
 
@@ -395,23 +377,18 @@ class UpdateOneGoogleCalendar:
 
                 # @todo compare the update dates
 
-                if self.verboseMode:
-                    print "Deleting event '", event1.title.text, "'"
+                self.logger.info("deleting duplicate event '%s'" % event1.title.text)
                 deletedEvents += 1
                 try:
                     self.calClient.DeleteEvent(event1.GetEditLink().href)
                     self.calClient.DeleteEvent(event2.GetEditLink().href)
                 except gdata.service.RequestError, err:
-                    if self.verboseMode:
-                        print "Error deleting event"
+                    self.logger.error("error deleting event")
                     deletedEvents -= 1
 
 
-        if self.verboseMode:
-            print "Deleted", deletedEvents, "events"
-
-
-            print "<<<\n<<<", __name__, ":", failedUpdates, "failed updates\n<<<"
+        self.logger.info("deleted %d duplicate events" % deletedEvents)
+        self.logger.info("%d failed updates" % failedUpdates)
 
         return failedUpdates
 
@@ -419,7 +396,7 @@ class UpdateOneGoogleCalendar:
 
 def Usage():
 
-    print "Usage :", os.path.basename(__file__), "[-t] [-v] <ffindr hash>"
+    print "Usage : %s [-t] [-v] <ffindr hash>" % os.path.basename(__file__)
     print "-v: verbose mode"
     print "-t: testing mode, print raw xml "
     print
