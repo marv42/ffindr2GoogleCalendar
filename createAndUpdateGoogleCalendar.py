@@ -108,11 +108,10 @@ class CreateAndUpdateGoogleCalendar:
         self.calClient.source = source
         self.calClient.ProgrammaticLogin()
 
-        self.ffindrStreamUrl = None
-        self.ffindrHash      = ffindrHash
-        self.calendarTitle   = 'no Title'
-        self.calendarId      = -1
-        self.debugMode       = False
+        self.ffindrHash    = ffindrHash
+        self.calendarTitle = 'no Title'
+        self.calendarId    = -1
+        self.debugMode     = False
         logging.basicConfig(format='[%(filename)s] %(message)s')
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.WARNING)
@@ -126,7 +125,7 @@ class CreateAndUpdateGoogleCalendar:
                         color='#2952A3'):
         """Creates a new calendar using the specified data."""
 
-        description = 'This calendar is generated automatically from the ffindr RSS stream "%s" (%s).\n\nIf you want your tournament to be listed here, enter it to ffindr.\n\nffindr is one of the biggest frisbee tournament portals on the web: www.ffindr.com' % (title, self.ffindrStreamUrl)
+        description = 'This calendar is generated automatically from the ffindr RSS stream "%s" (http://ffindr.com/en/feed/filter/%s).\n\nIf you want your tournament to be listed here, enter it to ffindr.\n\nffindr is one of the biggest frisbee tournament portals on the web: www.ffindr.com' % (title, self.ffindrHash)
 
         colorlist = ("#0D7813", "#1B887A", "#29527A", "#2952A3", "#28754E", "#4A716C", "#4E5D6C", "#5229A3", "#528800", "#5A6986", "#6E6E41", "#705770", "#7A367A", "#865A5A", "#88880E", "#8D6F47", "#A32929", "#AB8B00", "#B1365F", "#B1440E", "#BE6D00")
         randomColor = colorlist[random.randrange(len(colorlist))]
@@ -207,21 +206,19 @@ class CreateAndUpdateGoogleCalendar:
         update of the calendar."""
 
         if self.ffindrHash == '':
-            self.logging.error("No ffindr hash given")
+            self.logging.error("no ffindr hash given")
             return simplejson.dumps({'result': 'NULL', 'error': 'No ffindr hash given'})
 
 
         # assemble ffindr URL
         #####################
 
-        ffindrPrefix = 'http://ffindr.com/en/feed/filter/'
-        self.ffindrStreamUrl = ffindrPrefix + self.ffindrHash
+        self.logger.info(self.ffindrHash)
 
-        self.logger.info(self.ffindrStreamUrl)
-
+        ffindrUrlPrefix = 'http://ffindr.com/en/feed/filter/'
         if self.debugMode:
             # raw XML:
-            sock = urllib.urlopen(self.ffindrStreamUrl)
+            sock = urllib.urlopen('%s%s' % (ffindrUrlPrefix, self.ffindrHash))
             htmlSource = sock.read()
             sock.close()
             print htmlSource
@@ -241,7 +238,7 @@ class CreateAndUpdateGoogleCalendar:
         parser.setContentHandler(cch)
         parser.setEntityResolver(cch)
 
-        parser.parse(self.ffindrStreamUrl)
+        parser.parse('%s%s' % (ffindrUrlPrefix, self.ffindrHash))
 
         calendarTitle = cch.getTitle()
 
@@ -350,13 +347,13 @@ class CreateAndUpdateGoogleCalendar:
         # we don't have to check if we have got a valid URL --
         # updateOneGoogleCalendar will check this
 
-        updateObject = UpdateOneGoogleCalendar(self.ffindrStreamUrl)
+        updateObject = UpdateOneGoogleCalendar(self.ffindrHash)
 
         if self.logger.isEnabledFor(logging.INFO):
             updateObject.SetVerboseMode()
 
         updateSuccessful = updateObject.Run()
-        self.logger.info("(debug with: 'updateOneGoogleCalendar.py -v -t %s')" % self.ffindrStreamUrl)
+        self.logger.info("(debug with: 'updateOneGoogleCalendar.py -v -t %s')" % self.ffindrHash)
         if not updateSuccessful == 0:
             self.logger.info("... failed")
             return simplejson.dumps({'result': 'NULL', 'error': 'Creation successful but updating failed'})

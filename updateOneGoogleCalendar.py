@@ -46,7 +46,7 @@ import urllib2
 
 class UpdateOneGoogleCalendar:
 
-    def __init__(self, ffindrUrl):
+    def __init__(self, ffindrHash):
         """Creates a CalendarService and provides ClientLogin auth details to
         it.  The email and password are required arguments for ClientLogin.
         The CalendarService automatically sets the service to be 'cl', as is
@@ -74,7 +74,7 @@ class UpdateOneGoogleCalendar:
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.WARNING)
         self.testingMode = False
-        self.inputFfindrUrl = ffindrUrl
+        self.ffindrHash = ffindrHash
 
 
 
@@ -126,7 +126,6 @@ class UpdateOneGoogleCalendar:
     def SetTestingMode(self):
         self.testingMode = True
 
-
     def Run(self):
         """Updates a calendar in the WFDF Google calendar account with the
         events of a ffindr (www.ffindr.com) RSS stream.
@@ -148,25 +147,19 @@ class UpdateOneGoogleCalendar:
         104 = error: parse error, inconsistent amount of elements"""
 
 
-        # prepend prefix
-        ################
-
-        prefix = "http://ffindr.com/en/feed/filter/"
-        if not self.inputFfindrUrl.startswith(prefix):
-            self.inputFfindrUrl = prefix + self.inputFfindrUrl
-
+        ffindrUrlPrefix = "http://ffindr.com/en/feed/filter/"
         if self.testingMode:
-            sock = urllib2.urlopen(self.inputFfindrUrl)
+            sock = urllib2.urlopen("%s%s" % (ffindrUrlPrefix, self.ffindrHash))
             file("contentOfInputFfindrUrl.xml", 'w').write(sock.read())
             sock.close()
 
-        self.logger.info(self.inputFfindrUrl)
+        self.logger.info(self.ffindrHash)
 
 
         # get calendar query object
         ###########################
 
-        idDetermination = ffindrHash2GoogleId(self.inputFfindrUrl)
+        idDetermination = ffindrHash2GoogleId(self.ffindrHash)
 
         if self.logger.isEnabledFor(logging.INFO):
             idDetermination.SetVerboseMode()
@@ -183,9 +176,10 @@ class UpdateOneGoogleCalendar:
 
         #eventQuery.futureevents = 'true' # must be according to the ffindr
                                           # feed results
-        eventQuery.max_results = 150 # needs to be > than what the ffindr feed
-                                     # returns, or the events will be inserted
-                                     # again and again!
+        eventQuery.max_results = 999
+        # this must be bigger than what the ffindr feed returns, or the events
+        # will be inserted again and again!
+
 
         try:
             calendarQuery = self.calClient.CalendarQuery(eventQuery)
@@ -198,7 +192,7 @@ class UpdateOneGoogleCalendar:
         # parse the content of the ffindr RSS stream
         ############################################
 
-        feed = urllib2.urlopen(self.inputFfindrUrl)
+        feed = urllib2.urlopen("%s%s" % (ffindrUrlPrefix, self.ffindrHash))
         dom = parse(feed)
 
 
@@ -399,9 +393,9 @@ def Usage():
     print "Usage : %s [-t] [-v] <ffindr hash>" % os.path.basename(__file__)
     print "-v: verbose mode"
     print "-t: testing mode, print raw xml "
+
     print
     print "Available calendars:"
-
     xml = './google-calendar.xml'
     sock = urllib2.urlopen(xml)
     print sock.read()
@@ -440,7 +434,6 @@ def main():
     for o, a in opts:
         if o in ("-t"):
             mainObject.SetTestingMode()
-
         if o in ("-v"):
             mainObject.SetVerboseMode()
 
