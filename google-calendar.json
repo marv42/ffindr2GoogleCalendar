@@ -4,7 +4,5 @@
     "filters": [
         { "name": "Ultimate Tournaments in Europe", "hash": "234f4d47703d0" },
         { "name": "Beach Tournaments",              "hash": "234cc141edebb" },
-        { "name": "Official Tournaments",           "hash": "2351410f67bb2" },
-        { "name": "Advanced Tournaments",           "hash": "234ee8e20e402" }
     ]
 }
