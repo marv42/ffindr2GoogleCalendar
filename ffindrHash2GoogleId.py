@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# $Id: ffindrHash2GoogleId.py 74 2009-08-02 10:55:32Z marvin $
-
 #     Copyright (C) 2008 Stefan Horter
 
 #     This program is free software: you can redistribute it and/or modify
@@ -21,22 +19,10 @@
 __author__ = 'marv42@gmail.com'
 
 
-try:
-    from xml.etree import ElementTree
-except ImportError:
-    from elementtree import ElementTree
-import atom
-import atom.service
-import gdata.calendar
-import gdata.calendar.service
-import gdata.service
-import getopt
+from authentication import Authentication
 import logging
-import os
-import pdb
 import re
-import sys
-import urllib
+# import json
 
 
 
@@ -55,16 +41,8 @@ class ffindrHash2GoogleId:
         more info on ClientLogin.  NOTE: ClientLogin should only be used for
         installed applications and not for multi-user web applications."""
 
-        # build source string
-        command = 'grep "^# .Id: " %s | awk \'$4 ~ /[0-9]+/ {print $4}\'' % __file__
-        version = os.popen(command).read()
-        source = 'marvin-ffindrHash2GoogleId-v %s' % str(version)
-
-        self.calClient = gdata.calendar.service.CalendarService()
-        self.calClient.email = 'wfdiscf@gmail.com'
-        self.calClient.password = '6009l3wfd15cf'
-        self.calClient.source = source
-        self.calClient.ProgrammaticLogin()
+        authentication = Authentication()
+        self.service = authentication.getService()
 
         logging.basicConfig(format='[%(filename)s] %(message)s')
         self.logger = logging.getLogger(__name__)
@@ -88,28 +66,16 @@ class ffindrHash2GoogleId:
         # search the hash in all calendars
         ##################################
 
-        try:
-            allCalendarsFeed = self.calClient.GetOwnCalendarsFeed()
-            # GetOwnCalendarsFeed instead of GetAllCalendarsFeed gets secondary calendars only
-            #print allCalendarsFeed; sys.exit(0)
-
-        except gdata.service.RequestError, err:
-            print err[0]['status']
-            print err[0]['body']
-            print err[0]['reason']
-            return ''
-
-        except:
-            print "error"
-            return ''
+        calendarList = self.service.calendarList().list().execute()
+        #print json.dumps(calendarList, sort_keys=True, indent=4); sys.exit(0)
 
         patternHash = re.compile(self.inputFfindrHash)
 
         calendarId = ''
 
-        for entry in allCalendarsFeed.entry:
-            if patternHash.search(str(entry.summary)):
-                calendarId = urllib.unquote(entry.id.text.split('/').pop())
+        for entry in calendarList['items']:
+            if patternHash.search(str(entry['description'])):
+                calendarId = entry['id']
                 self.logger.info("-> %s" % calendarId)
                 break
 

@@ -92,6 +92,7 @@ class UpdateAllGoogleCalendars:
 
                 if returnJson['error'] != 'NULL':
                     self.logger.info( "... failed")
+                    return 1
 
 
 def Usage():
@@ -130,7 +131,7 @@ def main():
             sys.exit()
 
 
-    mainObject.Run()
+    return mainObject.Run()
 
 
 

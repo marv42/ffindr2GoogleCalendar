@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# $Id: createAndUpdateGoogleCalendar.py 75 2009-08-02 12:37:57Z marvin $
-
 #     Copyright (C) 2008 Stefan Horter
 
 #     This program is free software: you can redistribute it and/or modify
@@ -21,30 +19,14 @@
 __author__ = 'marv42@gmail.com'
 
 
-try:
-    from xml.etree import ElementTree
-except ImportError:
-    from elementtree import ElementTree
-import gdata.calendar.service
-import gdata.service
-import atom.service
-import gdata.calendar
-import atom
-import getopt
-import logging
-import sys
-import string
-import time
-import cgi
-import os
-import re
-import urllib
-import random
 from updateOneGoogleCalendar import UpdateOneGoogleCalendar
+from authentication import Authentication
+import logging
+import re
 from xml.sax import ContentHandler
 from xml.sax import make_parser
 from xml.sax.handler import feature_namespaces
-import simplejson
+import json
 
 
 
@@ -97,16 +79,8 @@ class CreateAndUpdateGoogleCalendar:
         more info on ClientLogin.  NOTE: ClientLogin should only be used for
         installed applications and not for multi-user web applications."""
 
-        # build source string
-        command = 'grep "^# .Id: " %s | awk \'$4 ~ /[0-9]+/ {print $4}\'' % __file__
-        version = os.popen(command).read()
-        source = 'marvin-createAndUpdateGoogleCalendar-v %s' % str(version)
-
-        self.calClient = gdata.calendar.service.CalendarService()
-        self.calClient.email = 'wfdiscf@gmail.com'
-        self.calClient.password = '6009l3wfd15cf'
-        self.calClient.source = source
-        self.calClient.ProgrammaticLogin()
+        authentication = Authentication()
+        self.service = authentication.getService()
 
         self.ffindrHash    = ffindrHash
         self.calendarTitle = 'no Title'
@@ -145,6 +119,7 @@ class CreateAndUpdateGoogleCalendar:
         #params={ ' ': ' '} ?
         #new_calendar = self.calClient.InsertCalendar(new_calendar=calendar, url_params=params)
 
+        # TODO
         new_calendar = self.calClient.InsertCalendar(new_calendar=calendar)
         return new_calendar
 
@@ -173,6 +148,7 @@ class CreateAndUpdateGoogleCalendar:
         rule.role = gdata.calendar.Role(value=roleValue)
         aclUrl = 'http://www.google.com/calendar/feeds/%s/acl/full' % self.calendarId
         #aclUrl = '/calendar/feeds/%s/acl/full' % self.calendarId
+        # TODO
         returned_rule = self.calClient.InsertAclEntry(rule, aclUrl)
 
 
@@ -207,7 +183,7 @@ class CreateAndUpdateGoogleCalendar:
 
         if self.ffindrHash == '':
             self.logging.error("no ffindr hash given")
-            return simplejson.dumps({'result': 'NULL', 'error': 'No ffindr hash given'})
+            return json.dumps({'result': 'NULL', 'error': 'No ffindr hash given'})
 
 
         # assemble ffindr URL
@@ -246,37 +222,24 @@ class CreateAndUpdateGoogleCalendar:
         # check if calendar already exists
         ##################################
 
-        try:
-            allCalendarsFeed = self.calClient.GetOwnCalendarsFeed()
-            # GetOwnCalendarsFeed instead of GetAllCalendarsFeed gets secondary calendars only
-            #print allCalendarsFeed; sys.exit()
-
-        except gdata.service.RequestError, err:
-            print err[0]['status']
-            print err[0]['body']
-            print err[0]['reason']
-            return simplejson.dumps({'result': 'NULL', 'error': 'Google connectivity problems'})
-
-        except:
-            print "Error: Google connectivity problems"
-            return simplejson.dumps({'result': 'NULL', 'error': 'Google connectivity problems'})
+        calendarList = self.service.calendarList().list().execute()
+        #print calendarList; sys.exit()
 
         googlePrefix = "http://www.google.com/calendar/feeds/default/owncalendars/full/"
 
         patternHash = re.compile(self.ffindrHash)
 
         calendarExistedAlready = False
-        for entry in allCalendarsFeed.entry:
-            if patternHash.search(str(entry.summary)):
+        for entry in calendarList['items']:
+            if patternHash.search(str(entry['description'])):
                 calendarExistedAlready = True
-                self.calendarId = entry.id.text
+                self.calendarId = entry['id']
                 self.calendarId = self.calendarId[len(googlePrefix):len(self.calendarId)]
                 break
 
         publicUrl = "http://www.google.com/calendar/embed?src=%s" % self.calendarId # rather with GetLink() (?)
 
         if not calendarExistedAlready:
-
 
             # try to create new calendar
             ############################
@@ -293,7 +256,7 @@ class CreateAndUpdateGoogleCalendar:
                     print err[0]['status']
                     print err[0]['body']
                     print err[0]['reason']
-                    return simplejson.dumps({'result': 'NULL', 'error': 'Google couldn\'t create a new calendar'})
+                    return json.dumps({'result': 'NULL', 'error': 'Google couldn\'t create a new calendar'})
 
                 elif err[0]['status'] == 403:
                     #command = 'mail -s "ffindr2Google: not enough quota" marv42@gmail.com'
@@ -301,16 +264,16 @@ class CreateAndUpdateGoogleCalendar:
                     print err[0]['status']
                     print err[0]['body']
                     print err[0]['reason']
-                    return simplejson.dumps({'result': 'NULL', 'error': 'Google couldn\'t create a new calendar'})
+                    return json.dumps({'result': 'NULL', 'error': 'Google couldn\'t create a new calendar'})
 
                 else:
                     print err[0]['status']
                     print err[0]['body']
                     print err[0]['reason']
-                    return simplejson.dumps({'result': 'NULL', 'error': 'Google connectivity problems'})
+                    return json.dumps({'result': 'NULL', 'error': 'Google connectivity problems'})
 
             except:
-                return simplejson.dumps({'result': 'NULL', 'error': 'Google connectivity problems'})
+                return json.dumps({'result': 'NULL', 'error': 'Google connectivity problems'})
 
             self.logger.info("... successful")
 
@@ -325,7 +288,7 @@ class CreateAndUpdateGoogleCalendar:
 
             else:
                 self.logger.error("error stripping prefix")
-                return simplejson.dumps({'result': 'NULL', 'error': 'Couldn\'t determine the calendar ID from the URL (error stripping prefix)'})
+                return json.dumps({'result': 'NULL', 'error': 'Couldn\'t determine the calendar ID from the URL (error stripping prefix)'})
                 # because we wouldn't be able to set the permissions with this ID
 
             self.logger.info("setting permissions / make calendar public ...")
@@ -356,13 +319,13 @@ class CreateAndUpdateGoogleCalendar:
         self.logger.info("(debug with: 'updateOneGoogleCalendar.py -v -t %s')" % self.ffindrHash)
         if not updateSuccessful == 0:
             self.logger.info("... failed")
-            return simplejson.dumps({'result': 'NULL', 'error': 'Creation successful but updating failed'})
+            return json.dumps({'result': 'NULL', 'error': 'Creation successful but updating failed'})
 
 
         # get the calendar URL
         ######################
 
-        return simplejson.dumps({'error': 'NULL', 'result': publicUrl})
+        return json.dumps({'error': 'NULL', 'result': publicUrl})
 
 
 

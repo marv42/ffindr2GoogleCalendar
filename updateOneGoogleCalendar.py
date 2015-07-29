@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# $Id: updateOneGoogleCalendar.py 76 2009-08-02 15:39:01Z marvin $
-
 #     Copyright (C) 2008 Stefan Horter
 
 #     This program is free software: you can redistribute it and/or modify
@@ -21,27 +19,17 @@
 __author__ = 'marv42@gmail.com'
 
 
-try:
-    from xml.etree import ElementTree # for Python 2.5 users
-except ImportError:
-    from elementtree import ElementTree
 from ffindrHash2GoogleId import ffindrHash2GoogleId
+from authentication import Authentication
 from utils import unHtmlify
 from xml.dom.minidom import parse
-import atom
-import datetime
-import gdata.calendar
-import gdata.calendar.service
-import gdata.service
+from datetime import datetime, date, timedelta
 import getopt
 import logging
 import os
-import posix
-import re
 import sys
-import time
 import urllib2
-
+import json
 
 
 class UpdateOneGoogleCalendar:
@@ -59,65 +47,15 @@ class UpdateOneGoogleCalendar:
         more info on ClientLogin.  NOTE: ClientLogin should only be used for
         installed applications and not for multi-user web applications."""
 
-        # build source string
-        command = 'grep "^# .Id: " %s | awk \'$4 ~ /[0-9]+/ {print $4}\'' % __file__
-        version = os.popen(command).read()
-        source = 'marvin-updateOneGoogleCalendar-v %s' % str(version)
 
-        self.calClient = gdata.calendar.service.CalendarService()
-        self.calClient.email = 'wfdiscf@gmail.com'
-        self.calClient.password = '6009l3wfd15cf'
-        self.calClient.source = source
-        self.calClient.ProgrammaticLogin()
+        authentication = Authentication()
+        self.service = authentication.getService()
 
         logging.basicConfig(format='[%(filename)s] %(message)s')
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.WARNING)
         self.testingMode = False
         self.ffindrHash = ffindrHash
-
-
-
-    def _InsertSingleEvent(self, id=u'default',
-                           title=u'No Title',
-                           content=u' ',
-                           link=u' ',
-                           where=u' ',
-                           start_time=None,
-                           end_time=None):
-        """Inserts a basic event using either start_time/end_time definitions
-        or gd:recurrence RFC2445 icalendar syntax.  Specifying both types of
-        dates is not valid.  Note how some members of the CalendarEventEntry
-        class use arrays and others do not.  Members which are allowed to
-        occur more than once in the calendar or GData"kinds" specifications
-        are stored as arrays.  Even for these elements, Google Calendar may
-        limit the number stored to 1.  The general motto to use when working
-        with the Calendar data API is that functionality not available through
-        the GUI will not be available through the API.  Please see the GData
-        Event "kind" document:
-        http://code.google.com/apis/gdata/elements.html#gdEventKind for more
-        information"""
-
-        event = gdata.calendar.CalendarEventEntry()
-        event.title   = atom.Title(text=title)
-        event.content = atom.Content(text=content)
-        event.link.append(atom.Link(rel='alternate', link_type='text/html', href=link))
-        # link.append doesn't seem to have an effect in the Google web client
-        event.where.append(gdata.calendar.Where(value_string=where))
-
-        if start_time is None: # should not happen!
-            # Use current time for the start_time
-            start_time = time.strftime('%Y-%m-%dT%H:%M:%S.000Z',
-                                       time.gmtime())
-
-            # end_time == None => single/whole day event
-
-        event.when.append(gdata.calendar.When(start_time=start_time,
-                                              end_time=end_time))
-
-        new_event = self.calClient.InsertEvent(event, '/calendar/feeds/' + self.calendarId + '/private/full')
-
-        return new_event
 
 
     def SetVerboseMode(self):
@@ -172,21 +110,8 @@ class UpdateOneGoogleCalendar:
 
         self.logger.info(self.calendarId) #, "=> URL"
 
-        eventQuery = gdata.calendar.service.CalendarEventQuery(self.calendarId)
-
-        #eventQuery.futureevents = 'true' # must be according to the ffindr
-                                          # feed results
-        eventQuery.max_results = 999
-        # this must be bigger than what the ffindr feed returns, or the events
-        # will be inserted again and again!
-
-
-        try:
-            calendarQuery = self.calClient.CalendarQuery(eventQuery)
-
-        except gdata.service.RequestError, err:
-            self.logger.error("Error reading calendar %s: %s" % (self.calendarId, err))
-            return 102
+        #calendar = self.service.calendarList().get(calendarId=self.calendarId).execute()
+        #print json.dumps(calendar, sort_keys=True, indent=4); sys.exit(0)
 
 
         # parse the content of the ffindr RSS stream
@@ -199,7 +124,18 @@ class UpdateOneGoogleCalendar:
         # for every event
         #################
 
-        failedUpdates = 0
+        today = datetime.today()
+        pageToken = None
+        events = []
+        while True:
+            eventPage = self.service.events().list(calendarId=self.calendarId,
+                                                   pageToken=pageToken,
+                                                   timeMin=today.strftime('%Y-%m-%dT%H:%M:%S-00:00')).execute()
+            for event in eventPage['items']:
+                events.append(event)
+            pageToken = eventPage.get('nextPageToken')
+            if not pageToken:
+                break
 
         # firstChild == "rss", firstChild.firstChild == <text>, firstChild.childNodes[1] == "channel"
         for itemNode in dom.firstChild.childNodes[1].childNodes:
@@ -213,7 +149,7 @@ class UpdateOneGoogleCalendar:
                         title       = node.childNodes[0].nodeValue
                     if node.nodeName == "link":
                         link        = node.childNodes[0].nodeValue
-                    if node.nodeName == "description":
+                    if node.nodeName == "description" and len(node.childNodes) > 0:
                         description = node.childNodes[0].nodeValue
                     if node.nodeName == "author":
                         author      = node.childNodes[0].nodeValue
@@ -221,8 +157,6 @@ class UpdateOneGoogleCalendar:
                         if category is not u'':
                             category += ", "
                         category    += node.childNodes[0].nodeValue
-                    if node.nodeName == "country":
-                        country     = node.childNodes[0].nodeValue
                     if node.nodeName == "location":
                         location    = node.childNodes[0].nodeValue
                     if node.nodeName == "dateStart":
@@ -241,8 +175,9 @@ class UpdateOneGoogleCalendar:
 
                 # set up the gd properties with the ffindr values
 
+                if 'DELETED' in title:
+                    continue
                 if title == '<incomplete>':
-                    failedUpdates += 1
                     self.logger.warning("Update of one event failed because it was incomplete")
                     continue
 
@@ -258,7 +193,6 @@ class UpdateOneGoogleCalendar:
                 dateStart   = dateStart.strip()
                 dateEnd     = dateEnd.strip()
                 location    = location.strip()
-                country     = country.strip()
                 geoLat      = geoLat.strip()
                 geoLong     = geoLong.strip()
 
@@ -269,8 +203,8 @@ class UpdateOneGoogleCalendar:
 
                 # End += 1 day (or Google takes two days events as one day)
                 [year, month, day] = str(dateEnd).split('-')
-                endDate      = datetime.date(int(year), int(month), int(day))
-                endDate     += datetime.timedelta(1)
+                endDate = date(int(year), int(month), int(day))
+                endDate += timedelta(1)
                 dateEnd = endDate.isoformat()
 
                 # description: link, (tags,) author, location
@@ -288,13 +222,9 @@ class UpdateOneGoogleCalendar:
                 if author is not '':
                     description += u'\n\nAuthor: ' + author
 
+                locationForDescription = ''
                 if location is not '':
                     locationForDescription = location
-                    if country is not '':
-                        # @todo && if location does not include country
-                        locationForDescription += u', ' + country
-                else:
-                    locationForDescription = country
 
                 if locationForDescription is not '':
                     description += u'\n\nLocation: ' + locationForDescription
@@ -315,76 +245,63 @@ class UpdateOneGoogleCalendar:
 
                 eventIsAlreadyInCalendar = False
 
-                for event in calendarQuery.entry:
-                    #print Title.encode('utf-8'), " ?= ", event.title.text.decode(sys.stdout.encoding)
-                    if event.title.text.decode('utf-8') == title:
+                for event in events:
+                    eventTitle = event.get('source')
+                    if eventTitle is not None:
+                        eventTitle = event.get('title')
+                    if eventTitle is None:
+                        eventTitle = event.get('summary')
+                    if eventTitle == title:
                         eventIsAlreadyInCalendar = True
                         break
 
                 if eventIsAlreadyInCalendar:
-                    #self.logger.info("... was already in the calendar")
+                    self.logger.info("... was already in the calendar")
                     continue
 
 
                 # insert event
                 ##############
 
-                self.logger.info("***** NEW *****")
-
+                self.logger.info("### NEW ###")
                 #print type(Title); return
-                successful = False
-                i = 0
-                howManyTimes = 3
-                while not successful and i < howManyTimes:
-                    try:
-                        event = self._InsertSingleEvent(self.calendarId, title,
-                                                        description, link,
-                                                        locationForWhere,
-                                                        dateStart, dateEnd)
-                        successful = True
-                    except gdata.service.RequestError, err:
-                        i+=1
-                        self.logger.error("Error inserting event ('%s'). Trying once more (%i/%i)..." % (str(err), i, howManyTimes))
-                        time.sleep(120)
+
+                source = {}
+                source['url'] = link
+                source['title'] = title
+                event = {}
+                event['source'] = source
+                event['start'] = { 'date': dateStart }
+                event['end'] = { 'date': dateEnd }
+                event['location'] = locationForWhere
+                event['description'] = description
+                event['summary'] = title
+                newEvent = self.service.events().insert(calendarId=self.calendarId, body=event).execute()
 
 
         # delete duplicate events
         #########################
 
-        eventQuery.max_results = 500
+        def deleteEvent(id):
+            self.logger.info("deleting event %s" % id)
+            # TODO geht ned
+            response = self.service.events().delete(calendarId=self.calendarId,
+                                                    eventId=id)
+            if json.loads(response.to_json())['body'] != None:
+                self.logger.info("... failed")
 
-        try:
-            calendarQuery = self.calClient.CalendarQuery(eventQuery)
+        for event1 in events:
+            summary1 = event1.get('summary')
+            for event2 in events:
+                summary2 = event2.get('summary')
+                if summary1 == summary2 and \
+                       event1['id'] != event2['id']:
+                    self.logger.info(summary1)
+                    deleteEvent(event1['id'])
+                    deleteEvent(event2['id'])
+                    break
 
-        except gdata.service.RequestError, err:
-            self.logger.error("Error reading calendar %s" % self.calendarId)
-            return 102
-
-        #self.logger.info("got calendar query object")
-
-        deletedEvents = 0
-
-        for event1 in calendarQuery.entry:
-            for event2 in calendarQuery.entry:
-                if event1.title.text != event2.title.text or event1 == event2:
-                    continue
-
-                # @todo compare the update dates
-
-                self.logger.info("deleting duplicate event '%s'" % event1.title.text)
-                deletedEvents += 1
-                try:
-                    self.calClient.DeleteEvent(event1.GetEditLink().href)
-                    self.calClient.DeleteEvent(event2.GetEditLink().href)
-                except gdata.service.RequestError, err:
-                    self.logger.error("error deleting event")
-                    deletedEvents -= 1
-
-
-        self.logger.info("deleted %d duplicate events" % deletedEvents)
-        self.logger.info("%d failed updates" % failedUpdates)
-
-        return failedUpdates
+        return 0
 
 
 
@@ -396,10 +313,9 @@ def Usage():
 
     print
     print "Available calendars:"
-    xml = './google-calendar.xml'
-    sock = urllib2.urlopen(xml)
-    print sock.read()
-    sock.close()
+    for line in file("google-calendar.json"):
+        if "hash" in line:
+            print line,
 
     return
 

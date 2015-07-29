@@ -1,0 +1,9 @@
+#!/bin/sh
+
+DIR=/home/marvin/etc/GoogleCalendar
+LOG_FILE=$DIR/updateAllGoogleCalendars.log
+
+date > $LOG_FILE
+python $DIR/updateAllGoogleCalendars.py -v >> $LOG_FILE
+
+[[ $? -ne 0 ]] && echo "see <a href=\"file://$LOG_FILE\">log file</a> for details" | mail -s "updateAllGoogleCalendars.py failed" marv42@gmail.com
