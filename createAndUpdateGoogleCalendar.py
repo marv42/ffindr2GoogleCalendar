@@ -86,9 +86,6 @@ class CreateAndUpdateGoogleCalendar:
         self.calendarTitle = 'no Title'
         self.calendarId    = -1
         self.debugMode     = False
-        logging.basicConfig(format='[%(filename)s] %(message)s')
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.WARNING)
 
     def _InsertCalendar(self,
                         title='Standard ffindr Stream Calendar Title',
@@ -152,9 +149,6 @@ class CreateAndUpdateGoogleCalendar:
         returned_rule = self.calClient.InsertAclEntry(rule, aclUrl)
 
 
-    def SetVerboseMode(self):
-        self.logger.setLevel(logging.INFO)
-
     def SetDebugMode(self):
         self.debugMode = True
 
@@ -182,14 +176,14 @@ class CreateAndUpdateGoogleCalendar:
         update of the calendar."""
 
         if self.ffindrHash == '':
-            self.logging.error("no ffindr hash given")
+            logging.error("no ffindr hash given")
             return json.dumps({'result': 'NULL', 'error': 'No ffindr hash given'})
 
 
         # assemble ffindr URL
         #####################
 
-        self.logger.info(self.ffindrHash)
+        logging.info(self.ffindrHash)
 
         ffindrUrlPrefix = 'http://ffindr.com/en/feed/filter/'
         if self.debugMode:
@@ -244,8 +238,8 @@ class CreateAndUpdateGoogleCalendar:
             # try to create new calendar
             ############################
 
-            #self.logger.info("... calendar is not yet a Google calendar")
-            self.logger.info("trying to create the Google calendar ...")
+            #logging.info("... calendar is not yet a Google calendar")
+            logging.info("trying to create the Google calendar ...")
 
             try:
                 newCalendar = self._InsertCalendar(title=calendarTitle)
@@ -275,7 +269,7 @@ class CreateAndUpdateGoogleCalendar:
             except:
                 return json.dumps({'result': 'NULL', 'error': 'Google connectivity problems'})
 
-            self.logger.info("... successful")
+            logging.info("... successful")
 
             self.calendarId = newCalendar.id.text
 
@@ -287,11 +281,11 @@ class CreateAndUpdateGoogleCalendar:
                 self.calendarId = self.calendarId[len(googlePrefix):len(self.calendarId)]
 
             else:
-                self.logger.error("error stripping prefix")
+                logging.error("error stripping prefix")
                 return json.dumps({'result': 'NULL', 'error': 'Couldn\'t determine the calendar ID from the URL (error stripping prefix)'})
                 # because we wouldn't be able to set the permissions with this ID
 
-            self.logger.info("setting permissions / make calendar public ...")
+            logging.info("setting permissions / make calendar public ...")
 
             self._CreateAclRule() # make calendar public
             #self._CreateAclRule("user@gmail.com")
@@ -312,13 +306,10 @@ class CreateAndUpdateGoogleCalendar:
 
         updateObject = UpdateOneGoogleCalendar(self.ffindrHash)
 
-        if self.logger.isEnabledFor(logging.INFO):
-            updateObject.SetVerboseMode()
-
         updateSuccessful = updateObject.Run()
-        self.logger.info("(debug with: 'updateOneGoogleCalendar.py -v -t %s')" % self.ffindrHash)
+        logging.info("(debug with: 'updateOneGoogleCalendar.py -t %s')" % self.ffindrHash)
         if not updateSuccessful == 0:
-            self.logger.info("... failed")
+            logging.info("... failed")
             return json.dumps({'result': 'NULL', 'error': 'Creation successful but updating failed'})
 
 
@@ -330,7 +321,7 @@ class CreateAndUpdateGoogleCalendar:
 
 
 def Usage():
-    print "Usage : %s [-d] [-v] <ffindr hash>" % os.path.basename(__file__)
+    print "Usage : %s [-d] <ffindr hash>" % os.path.basename(__file__)
     print
     print "Available hashes:"
 
@@ -347,18 +338,16 @@ def main():
     """Runs the application."""
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "dhv")
+        opts, args = getopt.getopt(sys.argv[1:], "dh")
     except getopt.GetoptError:
         print "Unknown option"
         Usage()
         sys.exit(5)
 
-
     for o, a in opts:
         if o in ("-h", "--help"):
             Usage()
             sys.exit()
-
 
     if not len(args) == 1:
         print "Wrong number of arguments"
@@ -372,9 +361,6 @@ def main():
     for o, a in opts:
         if o in ("-d"):
             mainObject.SetDebugMode()
-
-        if o in ("-v"):
-            mainObject.SetVerboseMode()
 
 
     mainObject.Run()

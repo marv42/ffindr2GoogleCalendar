@@ -44,14 +44,8 @@ class ffindrHash2GoogleId:
         authentication = Authentication()
         self.service = authentication.getService()
 
-        logging.basicConfig(format='[%(filename)s] %(message)s')
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.WARNING)
         self.inputFfindrHash = ffindrHash
 
-
-    def SetVerboseMode(self):
-        self.logger.setLevel(logging.INFO)
 
 
     def Run(self):
@@ -60,7 +54,7 @@ class ffindrHash2GoogleId:
         Returns the calendar ID or '' if no ID found matching the hash or
         if some error occurred"""
 
-        self.logger.info(self.inputFfindrHash)
+        logging.info(self.inputFfindrHash)
 
 
         # search the hash in all calendars
@@ -76,18 +70,18 @@ class ffindrHash2GoogleId:
         for entry in calendarList['items']:
             if patternHash.search(str(entry['description'])):
                 calendarId = entry['id']
-                self.logger.info("-> %s" % calendarId)
+                logging.info("-> %s" % calendarId)
                 break
 
         if calendarId == '':
-            self.logger.warning("No calendar found with this ffindr hash")
+            logging.warning("No calendar found with this ffindr hash")
 
         return calendarId
 
 
 
 def Usage():
-    print "Usage : %s [-v] <ffindr hash>" % os.path.basename(__file__)
+    print "Usage : %s <ffindr hash>" % os.path.basename(__file__)
 
 
 
@@ -98,7 +92,7 @@ def main():
     ###############
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "hv")
+        opts, args = getopt.getopt(sys.argv[1:], "h")
     except getopt.GetoptError:
         print "Unknown option"
         Usage()
@@ -116,9 +110,6 @@ def main():
         if o in ("-h", "--help"):
             Usage()
             sys.exit()
-
-        if o in ("-v"):
-            mainObject.SetVerboseMode()
 
     if not len(args) == 1:
         sys.exit(1)

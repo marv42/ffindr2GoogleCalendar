@@ -51,15 +51,9 @@ class UpdateOneGoogleCalendar:
         authentication = Authentication()
         self.service = authentication.getService()
 
-        logging.basicConfig(format='[%(filename)s] %(message)s')
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.WARNING)
         self.testingMode = False
         self.ffindrHash = ffindrHash
 
-
-    def SetVerboseMode(self):
-        self.logger.setLevel(logging.INFO)
 
     def SetTestingMode(self):
         self.testingMode = True
@@ -87,11 +81,14 @@ class UpdateOneGoogleCalendar:
 
         ffindrUrlPrefix = "http://ffindr.com/en/feed/filter/"
         if self.testingMode:
-            sock = urllib2.urlopen("%s%s" % (ffindrUrlPrefix, self.ffindrHash))
+            url = "%s%s" % (ffindrUrlPrefix, self.ffindrHash)
+            logging.info(url)
+            sock = urllib2.urlopen(url)
             file("contentOfInputFfindrUrl.xml", 'w').write(sock.read())
             sock.close()
+            logging.info("see contentOfInputFfindrUrl.xml")
 
-        self.logger.info(self.ffindrHash)
+        logging.info(self.ffindrHash)
 
 
         # get calendar query object
@@ -99,16 +96,14 @@ class UpdateOneGoogleCalendar:
 
         idDetermination = ffindrHash2GoogleId(self.ffindrHash)
 
-        if self.logger.isEnabledFor(logging.INFO):
-            idDetermination.SetVerboseMode()
 
         self.calendarId = idDetermination.Run()
 
         if self.calendarId == '':
-            self.logger.error("error getting calendar ID")
+            logging.error("error getting calendar ID")
             return 102
 
-        self.logger.info(self.calendarId) #, "=> URL"
+        logging.info(self.calendarId) #, "=> URL"
 
         #calendar = self.service.calendarList().get(calendarId=self.calendarId).execute()
         #print json.dumps(calendar, sort_keys=True, indent=4); sys.exit(0)
@@ -157,7 +152,7 @@ class UpdateOneGoogleCalendar:
                         if category is not u'':
                             category += ", "
                         category    += node.childNodes[0].nodeValue
-                    if node.nodeName == "location":
+                    if node.nodeName == "location" and len(node.childNodes) > 0:
                         location    = node.childNodes[0].nodeValue
                     if node.nodeName == "dateStart":
                         dateStart   = node.childNodes[0].nodeValue
@@ -178,7 +173,7 @@ class UpdateOneGoogleCalendar:
                 if 'DELETED' in title:
                     continue
                 if title == '<incomplete>':
-                    self.logger.warning("Update of one event failed because it was incomplete")
+                    logging.warning("Update of one event failed because it was incomplete")
                     continue
 
                 # strip
@@ -201,11 +196,15 @@ class UpdateOneGoogleCalendar:
 
                 # date calculation
 
-                # End += 1 day (or Google takes two days events as one day)
+                [year, month, day] = str(dateStart).split('-')
+                startDate = date(int(year), int(month), int(day))
                 [year, month, day] = str(dateEnd).split('-')
                 endDate = date(int(year), int(month), int(day))
+                # end += 1 day (or Google takes two days events as one day)
                 endDate += timedelta(1)
                 dateEnd = endDate.isoformat()
+                if (endDate - startDate).days > 7: # 1 week
+                    continue
 
                 # description: link, (tags,) author, location
 
@@ -238,7 +237,7 @@ class UpdateOneGoogleCalendar:
                     locationForDescription = locationForDescription.replace(')', u'')
                     locationForWhere = geoLat + u', ' + geoLong + u' (' + locationForDescription + u')'
 
-                self.logger.info("event '%s'" % title.encode('utf-8'))
+                logging.info("event '%s'" % title.encode('utf-8'))
 
                 # check if event already exists
                 ###############################
@@ -256,14 +255,14 @@ class UpdateOneGoogleCalendar:
                         break
 
                 if eventIsAlreadyInCalendar:
-                    self.logger.info("... was already in the calendar")
+                    logging.info("... was already in the calendar")
                     continue
 
 
                 # insert event
                 ##############
 
-                self.logger.info("### NEW ###")
+                logging.info("### NEW ###")
                 #print type(Title); return
 
                 source = {}
@@ -283,12 +282,12 @@ class UpdateOneGoogleCalendar:
         #########################
 
         def deleteEvent(id):
-            self.logger.info("deleting event %s" % id)
+            logging.info("deleting event %s" % id)
             # TODO geht ned
             response = self.service.events().delete(calendarId=self.calendarId,
                                                     eventId=id)
             if json.loads(response.to_json())['body'] != None:
-                self.logger.info("... failed")
+                logging.info("... failed")
 
         for event1 in events:
             summary1 = event1.get('summary')
@@ -296,7 +295,7 @@ class UpdateOneGoogleCalendar:
                 summary2 = event2.get('summary')
                 if summary1 == summary2 and \
                        event1['id'] != event2['id']:
-                    self.logger.info(summary1)
+                    logging.info(summary1)
                     deleteEvent(event1['id'])
                     deleteEvent(event2['id'])
                     break
@@ -307,8 +306,7 @@ class UpdateOneGoogleCalendar:
 
 def Usage():
 
-    print "Usage : %s [-t] [-v] <ffindr hash>" % os.path.basename(__file__)
-    print "-v: verbose mode"
+    print "Usage : %s [-t] <ffindr hash>" % os.path.basename(__file__)
     print "-t: testing mode, print raw xml "
 
     print
@@ -329,7 +327,7 @@ def main():
     ###############
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "htv")
+        opts, args = getopt.getopt(sys.argv[1:], "ht")
     except getopt.GetoptError as e:
         Usage()
         sys.exit(str(e))
@@ -350,8 +348,6 @@ def main():
     for o, a in opts:
         if o in ("-t"):
             mainObject.SetTestingMode()
-        if o in ("-v"):
-            mainObject.SetVerboseMode()
 
 
     mainObject.Run()
@@ -359,4 +355,13 @@ def main():
 
 
 if __name__ == '__main__':
+
+    logging.basicConfig(level=logging.INFO,
+                        filename='updateAllGoogleCalendars.log',
+                        format='[%(asctime)s %(filename)s] %(message)s',
+                        datefmt='%Y-%m-%d %H:%M')
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    logging.getLogger('').addHandler(console)
+
     main()
