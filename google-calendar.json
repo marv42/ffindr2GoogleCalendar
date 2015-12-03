@@ -2,7 +2,11 @@
     "prefix": "http://ffindr.com/find/filter/",
 
     "filters": [
-        { "name": "Ultimate Tournaments in Europe", "hash": "234f4d47703d0" },
-        { "name": "Beach Tournaments",              "hash": "234cc141edebb" }
+        { "name": "Ultimate Tournaments in Europe",
+          "hash": "234f4d47703d0",
+          "uc"  : "http://ultimatecentral.com/en_US/e/view/rss/per_page/50/sport/Ultimate/type/tournament;hat+tournament/location/Europe?ffindr=1"},
+        { "name": "Beach Tournaments",
+          "hash": "234cc141edebb",
+          "uc"  : "http://ultimatecentral.com/en_US/e/view/rss/per_page/50/surface/sand?ffindr=1" }
     ]
 }

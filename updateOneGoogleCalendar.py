@@ -34,7 +34,7 @@ import json
 
 class UpdateOneGoogleCalendar:
 
-    def __init__(self, ffindrHash):
+    def __init__(self, hash, url):
         """Creates a CalendarService and provides ClientLogin auth details to
         it.  The email and password are required arguments for ClientLogin.
         The CalendarService automatically sets the service to be 'cl', as is
@@ -52,7 +52,8 @@ class UpdateOneGoogleCalendar:
         self.service = authentication.getService()
 
         self.testingMode = False
-        self.ffindrHash = ffindrHash
+        self.ffindrHash = hash
+        self.url = url
 
 
     def SetTestingMode(self):
@@ -79,16 +80,13 @@ class UpdateOneGoogleCalendar:
         104 = error: parse error, inconsistent amount of elements"""
 
 
-        ffindrUrlPrefix = "http://ffindr.com/en/feed/filter/"
         if self.testingMode:
-            url = "%s%s" % (ffindrUrlPrefix, self.ffindrHash)
-            logging.info(url)
-            sock = urllib2.urlopen(url)
+            sock = urllib2.urlopen(self.url)
             file("contentOfInputFfindrUrl.xml", 'w').write(sock.read())
             sock.close()
             logging.info("see contentOfInputFfindrUrl.xml")
 
-        logging.info(self.ffindrHash)
+        logging.info(self.url)
 
 
         # get calendar query object
@@ -112,7 +110,7 @@ class UpdateOneGoogleCalendar:
         # parse the content of the ffindr RSS stream
         ############################################
 
-        feed = urllib2.urlopen("%s%s" % (ffindrUrlPrefix, self.ffindrHash))
+        feed = urllib2.urlopen(self.url)
         dom = parse(feed)
 
 
@@ -306,7 +304,7 @@ class UpdateOneGoogleCalendar:
 
 def Usage():
 
-    print "Usage : %s [-t] <ffindr hash>" % os.path.basename(__file__)
+    print "Usage : %s [-t] <ffindr hash> <UC URL>" % os.path.basename(__file__)
     print "-t: testing mode, print raw xml "
 
     print
@@ -327,7 +325,7 @@ def main():
     ###############
 
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "ht")
+        opts, args = getopt.getopt(sys.argv[2:], "ht")
     except getopt.GetoptError as e:
         Usage()
         sys.exit(str(e))
@@ -337,12 +335,12 @@ def main():
             Usage()
             sys.exit()
 
-    if not len(args) == 1:
+    if not len(args) == 2:
         Usage()
         sys.exit("Wrong number of arguments")
 
 
-    mainObject = UpdateOneGoogleCalendar(args[0])
+    mainObject = UpdateOneGoogleCalendar(args[0], args[1])
 
 
     for o, a in opts:

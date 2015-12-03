@@ -66,7 +66,7 @@ class FfindrChannelContentHandler(ContentHandler):
 
 class CreateAndUpdateGoogleCalendar:
 
-    def __init__(self, ffindrHash):
+    def __init__(self, hash, url):
         """Creates a CalendarService and provides ClientLogin auth details to
         it.  The email and password are required arguments for ClientLogin.
         The CalendarService automatically sets the service to be 'cl', as is
@@ -82,7 +82,8 @@ class CreateAndUpdateGoogleCalendar:
         authentication = Authentication()
         self.service = authentication.getService()
 
-        self.ffindrHash    = ffindrHash
+        self.ffindrHash    = hash
+        self.url           = url
         self.calendarTitle = 'no Title'
         self.calendarId    = -1
         self.debugMode     = False
@@ -119,22 +120,6 @@ class CreateAndUpdateGoogleCalendar:
         # TODO
         new_calendar = self.calClient.InsertCalendar(new_calendar=calendar)
         return new_calendar
-
-
-
-    #def _CreateAclRule(self, username):
-    #    """Creates a ACL rule that grants the given user permission to view
-    #    free/busy information on the default calendar.  Note: It is not
-    #    necessary to specify a title for the ACL entry.  The server will set
-    #    this to be the value of the role specified (in this case"freebusy")."""
-
-    #    rule.scope = gdata.calendar.Scope(value=username, scope_type="user")
-    #    roleValue = "http://schemas.google.com/gCal/2005#%s" % ("freebusy")
-    #    rule.role = gdata.calendar.Role(value=roleValue)
-    #    aclUrl = "/calendar/feeds/default/acl/full"
-    #    print aclUrl
-    #    returned_rule = self.calClient.InsertAclEntry(rule, aclUrl)
-
 
 
     def _CreateAclRule(self):
@@ -178,24 +163,20 @@ class CreateAndUpdateGoogleCalendar:
         if self.ffindrHash == '':
             logging.error("no ffindr hash given")
             return json.dumps({'result': 'NULL', 'error': 'No ffindr hash given'})
+        if self.url == '':
+            logging.error("no url given")
+            return json.dumps({'result': 'NULL', 'error': 'No URL given'})
 
-
-        # assemble ffindr URL
-        #####################
-
-        logging.info(self.ffindrHash)
-
-        ffindrUrlPrefix = 'http://ffindr.com/en/feed/filter/'
         if self.debugMode:
             # raw XML:
-            sock = urllib.urlopen('%s%s' % (ffindrUrlPrefix, self.ffindrHash))
+            sock = urllib.urlopen(self.url)
             htmlSource = sock.read()
             sock.close()
             print htmlSource
             sys.exit()
 
 
-        # parse the content of the ffindr RSS stream
+        # parse the content of the RSS stream
         ############################################
 
         # setup XML parser
@@ -208,7 +189,7 @@ class CreateAndUpdateGoogleCalendar:
         parser.setContentHandler(cch)
         parser.setEntityResolver(cch)
 
-        parser.parse('%s%s' % (ffindrUrlPrefix, self.ffindrHash))
+        parser.parse(self.url)
 
         calendarTitle = cch.getTitle()
 
@@ -304,10 +285,10 @@ class CreateAndUpdateGoogleCalendar:
         # we don't have to check if we have got a valid URL --
         # updateOneGoogleCalendar will check this
 
-        updateObject = UpdateOneGoogleCalendar(self.ffindrHash)
+        updateObject = UpdateOneGoogleCalendar(self.ffindrHash, self.url)
 
         updateSuccessful = updateObject.Run()
-        logging.info("(debug with: 'updateOneGoogleCalendar.py -t %s')" % self.ffindrHash)
+        logging.info("(debug with: 'updateOneGoogleCalendar.py -t %s %s')" % (self.ffindrHash, self.url))
         if not updateSuccessful == 0:
             logging.info("... failed")
             return json.dumps({'result': 'NULL', 'error': 'Creation successful but updating failed'})
@@ -321,7 +302,7 @@ class CreateAndUpdateGoogleCalendar:
 
 
 def Usage():
-    print "Usage : %s [-d] <ffindr hash>" % os.path.basename(__file__)
+    print "Usage : %s [-d] <ffindr hash> <UC URL> " % os.path.basename(__file__)
     print
     print "Available hashes:"
 
@@ -349,13 +330,13 @@ def main():
             Usage()
             sys.exit()
 
-    if not len(args) == 1:
+    if not len(args) == 2:
         print "Wrong number of arguments"
         print Usage()
         sys.exit(5)
 
 
-    mainObject = CreateAndUpdateGoogleCalendar(args[0])
+    mainObject = CreateAndUpdateGoogleCalendar(args[0], args[1])
 
 
     for o, a in opts:

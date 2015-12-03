@@ -44,7 +44,7 @@ class UpdateAllGoogleCalendars:
         jsonFile = os.path.dirname(os.path.abspath(__file__)) + '/google-calendar.json'
 
 
-        # parse the content of the ffindr RSS stream
+        # parse the content of the RSS stream
         ############################################
 
         logging.info(jsonFile)
@@ -60,7 +60,8 @@ class UpdateAllGoogleCalendars:
 
             logging.info("'%s'" % filters[f]["name"])
 
-            createAndUpdate = CreateAndUpdateGoogleCalendar(filters[f]["hash"])
+            createAndUpdate = CreateAndUpdateGoogleCalendar(
+                filters[f]["hash"], filters[f]["uc"])
 
             returnJson = json.loads(createAndUpdate.Run())
             #print returnJson
