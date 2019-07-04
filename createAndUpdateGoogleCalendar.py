@@ -20,7 +20,6 @@ __author__ = 'marv42@gmail.com'
 
 
 from updateOneGoogleCalendar import UpdateOneGoogleCalendar
-from authentication import Authentication
 import logging
 import re
 from xml.sax import ContentHandler
@@ -66,7 +65,7 @@ class FfindrChannelContentHandler(ContentHandler):
 
 class CreateAndUpdateGoogleCalendar:
 
-    def __init__(self, hash, url):
+    def __init__(self, hash, url, service):
         """Creates a CalendarService and provides ClientLogin auth details to
         it.  The email and password are required arguments for ClientLogin.
         The CalendarService automatically sets the service to be 'cl', as is
@@ -79,11 +78,9 @@ class CreateAndUpdateGoogleCalendar:
         more info on ClientLogin.  NOTE: ClientLogin should only be used for
         installed applications and not for multi-user web applications."""
 
-        authentication = Authentication()
-        self.service = authentication.getService()
-
         self.ffindrHash    = hash
         self.url           = url
+        self.service       = service
         self.calendarTitle = 'no Title'
         self.calendarId    = -1
         self.debugMode     = False
@@ -285,10 +282,10 @@ class CreateAndUpdateGoogleCalendar:
         # we don't have to check if we have got a valid URL --
         # updateOneGoogleCalendar will check this
 
-        updateObject = UpdateOneGoogleCalendar(self.ffindrHash, self.url)
+        updateObject = UpdateOneGoogleCalendar(self.ffindrHash, self.url, self.service)
 
         updateSuccessful = updateObject.Run()
-        logging.info("(debug with: 'updateOneGoogleCalendar.py -t %s %s')" % (self.ffindrHash, self.url))
+        logging.info("(debug with: 'updateOneGoogleCalendar.py -t %s %s %s')" % (self.ffindrHash, self.url, self.service))
         if not updateSuccessful == 0:
             logging.info("... failed")
             return json.dumps({'result': 'NULL', 'error': 'Creation successful but updating failed'})

@@ -21,6 +21,7 @@
 __author__ = 'marv42@gmail.com'
 
 
+from authentication import Authentication
 from createAndUpdateGoogleCalendar import CreateAndUpdateGoogleCalendar
 import datetime
 import getopt
@@ -40,6 +41,9 @@ class UpdateAllGoogleCalendars:
     def Run(self):
         """Get all ffindr hashes from ffindr and call updateOneGoogleCalendar
         for each of them"""
+
+        authentication = Authentication()
+        self.service = authentication.getService()
 
         jsonFile = os.path.dirname(os.path.abspath(__file__)) + '/google-calendar.json'
 
@@ -61,7 +65,7 @@ class UpdateAllGoogleCalendars:
             logging.info("'%s'" % filters[f]["name"])
 
             createAndUpdate = CreateAndUpdateGoogleCalendar(
-                filters[f]["hash"], filters[f]["uc"])
+                filters[f]["hash"], filters[f]["uc"], self.service)
 
             returnJson = json.loads(createAndUpdate.Run())
             #print returnJson

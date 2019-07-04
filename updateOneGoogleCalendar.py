@@ -34,7 +34,7 @@ import json
 
 class UpdateOneGoogleCalendar:
 
-    def __init__(self, hash, url):
+    def __init__(self, hash, url, service):
         """Creates a CalendarService and provides ClientLogin auth details to
         it.  The email and password are required arguments for ClientLogin.
         The CalendarService automatically sets the service to be 'cl', as is
@@ -47,17 +47,16 @@ class UpdateOneGoogleCalendar:
         more info on ClientLogin.  NOTE: ClientLogin should only be used for
         installed applications and not for multi-user web applications."""
 
-
-        authentication = Authentication()
-        self.service = authentication.getService()
-
         self.testingMode = False
         self.ffindrHash = hash
         self.url = url
+        self.service = service
 
 
     def SetTestingMode(self):
         self.testingMode = True
+        authentication = Authentication()
+        self.service = authentication.getService()
 
     def Run(self):
         """Updates a calendar in the WFDF Google calendar account with the
@@ -92,7 +91,7 @@ class UpdateOneGoogleCalendar:
         # get calendar query object
         ###########################
 
-        idDetermination = ffindrHash2GoogleId(self.ffindrHash)
+        idDetermination = ffindrHash2GoogleId(self.ffindrHash, self.service)
 
 
         self.calendarId = idDetermination.Run()
@@ -137,6 +136,9 @@ class UpdateOneGoogleCalendar:
                 author      = u''
                 category    = u''
                 description = u''
+                geoLat      = u''
+                geoLong     = u''
+
                 for node in itemNode.childNodes:
                     if node.nodeName == "title":
                         title       = node.childNodes[0].nodeValue
@@ -304,7 +306,7 @@ class UpdateOneGoogleCalendar:
 
 def Usage():
 
-    print "Usage : %s [-t] <ffindr hash> <UC URL>" % os.path.basename(__file__)
+    print "Usage : %s [-t] <ffindr hash> <UC URL> <service>" % os.path.basename(__file__)
     print "-t: testing mode, print raw xml "
 
     print
@@ -325,7 +327,7 @@ def main():
     ###############
 
     try:
-        opts, args = getopt.getopt(sys.argv[2:], "ht")
+        opts, args = getopt.getopt(sys.argv[1:], "ht")
     except getopt.GetoptError as e:
         Usage()
         sys.exit(str(e))
@@ -335,12 +337,12 @@ def main():
             Usage()
             sys.exit()
 
-    if not len(args) == 2:
+    if not len(args) == 3:
         Usage()
         sys.exit("Wrong number of arguments")
 
 
-    mainObject = UpdateOneGoogleCalendar(args[0], args[1])
+    mainObject = UpdateOneGoogleCalendar(args[0], args[1], args[2])
 
 
     for o, a in opts:

@@ -19,7 +19,6 @@
 __author__ = 'marv42@gmail.com'
 
 
-from authentication import Authentication
 import logging
 import re
 # import json
@@ -28,7 +27,7 @@ import re
 
 class ffindrHash2GoogleId:
 
-    def __init__(self, ffindrHash):
+    def __init__(self, ffindrHash, service):
         """Creates a CalendarService and provides ClientLogin auth details to
         it.  The email and password are required arguments for ClientLogin.
         The CalendarService automatically sets the service to be 'cl', as is
@@ -41,11 +40,8 @@ class ffindrHash2GoogleId:
         more info on ClientLogin.  NOTE: ClientLogin should only be used for
         installed applications and not for multi-user web applications."""
 
-        authentication = Authentication()
-        self.service = authentication.getService()
-
         self.inputFfindrHash = ffindrHash
-
+        self.service = service
 
 
     def Run(self):
@@ -98,12 +94,12 @@ def main():
         Usage()
         sys.exit(1)
 
-    if not len(args) == 1:
+    if not len(args) == 2:
         print "Wrong number of arguments"
         Usage()
         sys.exit(1)
 
-    mainObject = ffindrHash2GoogleId(args[0])
+    mainObject = ffindrHash2GoogleId(args[0], args[1])
 
 
     for o, a in opts:
