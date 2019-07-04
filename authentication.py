@@ -24,7 +24,7 @@ import gflags
 from oauth2client.client import OAuth2WebServerFlow
 from oauth2client.file import Storage
 from httplib2 import Http
-from apiclient.discovery import build
+from googleapiclient.discovery import build
 
 
 
@@ -44,7 +44,8 @@ class Authentication():
             client_secret = 'p7dBLBNzYjCw4ZxroRN4AeCK',
             scope='https://www.googleapis.com/auth/calendar',
             user_agent='Python/2.7')
-        flags.auth_local_webserver = False
+        #flags.auth_local_webserver = False
+        gflags.DEFINE_boolean('auth_local_webserver', False, 'disable the local server feature')
 
         storage = Storage('storage.dat')
         credentials = storage.get()
