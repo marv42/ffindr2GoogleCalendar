@@ -16,24 +16,33 @@
 #     You should have received a copy of the GNU General Public License
 #     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-__author__ = 'marv42@gmail.com'
+__author__ = 'marv42+updateAllGoogleCalendars@gmail.com'
 
+import getopt
+import json
+import logging
+import os
+import random
+import re
+import sys
+import urllib
+from urllib.request import urlopen
+from xml.sax import make_parser
+from xml.sax.handler import ContentHandler
+from xml.sax.handler import feature_namespaces
+
+import atom
+import gdata.calendar
 
 from updateOneGoogleCalendar import UpdateOneGoogleCalendar
-import logging
-import re
-from xml.sax import ContentHandler
-from xml.sax import make_parser
-from xml.sax.handler import feature_namespaces
-import json
-
 
 
 class FfindrChannelContentHandler(ContentHandler):
 
     def __init__(self):
+        super().__init__()
         self.inChannelContent = True
-        self.inTitleContent   = False
+        self.inTitleContent = False
 
     def startElement(self, name, attrs):
         if name == 'item':
@@ -61,8 +70,6 @@ class FfindrChannelContentHandler(ContentHandler):
         return self.title
 
 
-
-
 class CreateAndUpdateGoogleCalendar:
 
     def __init__(self, hash, url, service):
@@ -78,32 +85,39 @@ class CreateAndUpdateGoogleCalendar:
         more info on ClientLogin.  NOTE: ClientLogin should only be used for
         installed applications and not for multi-user web applications."""
 
-        self.ffindrHash    = hash
-        self.url           = url
-        self.service       = service
+        self.ffindrHash = hash
+        self.url = url
+        self.service = service
         self.calendarTitle = 'no Title'
-        self.calendarId    = -1
-        self.debugMode     = False
+        self.calendarId = -1
+        self.debugMode = False
 
     def _InsertCalendar(self,
                         title='Standard ffindr Stream Calendar Title',
-                        description='Standard ffindr Stream Calendar',
                         time_zone='Europe/Paris',
                         hidden=False,
-                        location='Paris',
-                        color='#2952A3'):
+                        location='Paris'):
         """Creates a new calendar using the specified data."""
 
-        description = 'This calendar is generated automatically from the ffindr RSS stream "%s" (http://ffindr.com/en/feed/filter/%s).\n\nIf you want your tournament to be listed here, enter it to ffindr.\n\nffindr is one of the biggest frisbee tournament portals on the web: www.ffindr.com' % (title, self.ffindrHash)
+        description = 'This calendar is generated automatically from the ffindr RSS stream "%s" (' \
+                      'http://ffindr.com/en/feed/filter/%s).\n\nIf you want your tournament to be listed here, ' \
+                      'enter it to ffindr.\n\nffindr is one of the biggest frisbee tournament portals on the web: ' \
+                      'www.ffindr.com' % (
+                          title, self.ffindrHash)
 
-        colorlist = ("#0D7813", "#1B887A", "#29527A", "#2952A3", "#28754E", "#4A716C", "#4E5D6C", "#5229A3", "#528800", "#5A6986", "#6E6E41", "#705770", "#7A367A", "#865A5A", "#88880E", "#8D6F47", "#A32929", "#AB8B00", "#B1365F", "#B1440E", "#BE6D00")
-        randomColor = colorlist[random.randrange(len(colorlist))]
+        color_list = (
+            "#0D7813", "#1B887A", "#29527A", "#2952A3", "#28754E", "#4A716C", "#4E5D6C", "#5229A3", "#528800",
+            "#5A6986",
+            "#6E6E41", "#705770", "#7A367A", "#865A5A", "#88880E", "#8D6F47", "#A32929", "#AB8B00", "#B1365F",
+            "#B1440E",
+            "#BE6D00")
+        random_color = color_list[random.randrange(len(color_list))]
 
         calendar = gdata.calendar.CalendarListEntry()
         calendar.title = atom.Title(text=title)
         calendar.summary = atom.Summary(text=description)
         calendar.where = gdata.calendar.Where(value_string=location)
-        calendar.color = gdata.calendar.Color(value=randomColor)
+        calendar.color = gdata.calendar.Color(value=random_color)
         calendar.timezone = gdata.calendar.Timezone(value=time_zone)
 
         if hidden:
@@ -111,35 +125,31 @@ class CreateAndUpdateGoogleCalendar:
         else:
             calendar.hidden = gdata.calendar.Hidden(value='false')
 
-        #params={ ' ': ' '} ?
-        #new_calendar = self.calClient.InsertCalendar(new_calendar=calendar, url_params=params)
+        # params={ ' ': ' '} ?
+        # new_calendar = self.calClient.InsertCalendar(new_calendar=calendar, url_params=params)
 
         # TODO
         new_calendar = self.calClient.InsertCalendar(new_calendar=calendar)
         return new_calendar
 
-
     def _CreateAclRule(self):
 
         rule = gdata.calendar.CalendarAclEntry()
-        rule.scope = gdata.calendar.Scope(scope_type='default') # all users, no value
+        rule.scope = gdata.calendar.Scope(scope_type='default')  # all users, no value
         roleValue = 'http://schemas.google.com/gCal/2005#read'
         rule.role = gdata.calendar.Role(value=roleValue)
         aclUrl = 'http://www.google.com/calendar/feeds/%s/acl/full' % self.calendarId
-        #aclUrl = '/calendar/feeds/%s/acl/full' % self.calendarId
+        # aclUrl = '/calendar/feeds/%s/acl/full' % self.calendarId
         # TODO
         returned_rule = self.calClient.InsertAclEntry(rule, aclUrl)
 
-
-    def SetDebugMode(self):
+    def set_debug_mode(self):
         self.debugMode = True
 
-
-
-    #def error(self, exception):
+    # def error(self, exception):
     #    sys.stderr.write("\%s\n" % exception)
 
-    def Run(self):
+    def run(self):
         """If the calendar doesn't already exist, creates a new empty calendar
         from a ffindr RSS stream (given by the CGI) in the WFDF Google
         calendar account and calls updateOneGoogleCalendar.
@@ -166,12 +176,11 @@ class CreateAndUpdateGoogleCalendar:
 
         if self.debugMode:
             # raw XML:
-            sock = urllib.urlopen(self.url)
-            htmlSource = sock.read()
+            sock = urlopen(self.url)
+            html_source = sock.read()
             sock.close()
-            print htmlSource
+            print(html_source)
             sys.exit()
-
 
         # parse the content of the RSS stream
         ############################################
@@ -188,60 +197,59 @@ class CreateAndUpdateGoogleCalendar:
 
         parser.parse(self.url)
 
-        calendarTitle = cch.getTitle()
-
+        calendar_title = cch.getTitle()
 
         # check if calendar already exists
         ##################################
 
-        calendarList = self.service.calendarList().list().execute()
-        #print calendarList; sys.exit()
+        calendar_list = self.service.calendarList().list().execute()
+        # print calendar_list; sys.exit()
 
-        googlePrefix = "http://www.google.com/calendar/feeds/default/owncalendars/full/"
+        google_prefix = "http://www.google.com/calendar/feeds/default/owncalendars/full/"
 
-        patternHash = re.compile(self.ffindrHash)
+        pattern_hash = re.compile(self.ffindrHash)
 
-        calendarExistedAlready = False
-        for entry in calendarList['items']:
-            if patternHash.search(str(entry['description'])):
-                calendarExistedAlready = True
+        calendar_existed_already = False
+        for entry in calendar_list['items']:
+            if 'description' in entry and pattern_hash.search(str(entry['description'])):
+                calendar_existed_already = True
                 self.calendarId = entry['id']
-                self.calendarId = self.calendarId[len(googlePrefix):len(self.calendarId)]
+                self.calendarId = self.calendarId[len(google_prefix):len(self.calendarId)]
                 break
 
-        publicUrl = "http://www.google.com/calendar/embed?src=%s" % self.calendarId # rather with GetLink() (?)
+        public_url = "http://www.google.com/calendar/embed?src=%s" % self.calendarId  # rather with GetLink() (?)
 
-        if not calendarExistedAlready:
+        if not calendar_existed_already:
 
             # try to create new calendar
             ############################
 
-            #logging.info("... calendar is not yet a Google calendar")
+            # logging.info("... calendar is not yet a Google calendar")
             logging.info("trying to create the Google calendar ...")
 
             try:
-                newCalendar = self._InsertCalendar(title=calendarTitle)
+                new_calendar = self._InsertCalendar(title=calendar_title)
 
-            except gdata.service.RequestError, err:
+            except gdata.service.RequestError as err:
                 if err[0]['status'] == 500:
                     # Internal Server Error
-                    print err[0]['status']
-                    print err[0]['body']
-                    print err[0]['reason']
+                    print(err[0]['status'])
+                    print(err[0]['body'])
+                    print(err[0]['reason'])
                     return json.dumps({'result': 'NULL', 'error': 'Google couldn\'t create a new calendar'})
 
                 elif err[0]['status'] == 403:
-                    #command = 'mail -s "ffindr2Google: not enough quota" marv42@gmail.com'
-                    #os.system(command)
-                    print err[0]['status']
-                    print err[0]['body']
-                    print err[0]['reason']
+                    # command = 'mail -s "ffindr2Google: not enough quota" marv42@gmail.com'
+                    # os.system(command)
+                    print(err[0]['status'])
+                    print(err[0]['body'])
+                    print(err[0]['reason'])
                     return json.dumps({'result': 'NULL', 'error': 'Google couldn\'t create a new calendar'})
 
                 else:
-                    print err[0]['status']
-                    print err[0]['body']
-                    print err[0]['reason']
+                    print(err[0]['status'])
+                    print(err[0]['body'])
+                    print(err[0]['reason'])
                     return json.dumps({'result': 'NULL', 'error': 'Google connectivity problems'})
 
             except:
@@ -249,31 +257,30 @@ class CreateAndUpdateGoogleCalendar:
 
             logging.info("... successful")
 
-            self.calendarId = newCalendar.id.text
-
+            self.calendarId = new_calendar.id.text
 
             # set permissions
             #################
 
-            if self.calendarId.startswith(googlePrefix):
-                self.calendarId = self.calendarId[len(googlePrefix):len(self.calendarId)]
+            if self.calendarId.startswith(google_prefix):
+                self.calendarId = self.calendarId[len(google_prefix):len(self.calendarId)]
 
             else:
                 logging.error("error stripping prefix")
-                return json.dumps({'result': 'NULL', 'error': 'Couldn\'t determine the calendar ID from the URL (error stripping prefix)'})
+                return json.dumps({'result': 'NULL',
+                                   'error': 'Couldn\'t determine the calendar ID from the URL (error stripping prefix)'})
                 # because we wouldn't be able to set the permissions with this ID
 
             logging.info("setting permissions / make calendar public ...")
 
-            self._CreateAclRule() # make calendar public
-            #self._CreateAclRule("user@gmail.com")
-
+            self._CreateAclRule()  # make calendar public
+            # self._CreateAclRule("user@gmail.com")
 
             # send information mail
             #######################
 
-            publicUrl = "http://www.google.com/calendar/embed?src=%s" % self.calendarId
-            command = 'echo "... has just been created with the URL ' + publicUrl + '." | mail -s "New Google calendar" marv42@gmail.com'
+            public_url = "http://www.google.com/calendar/embed?src=%s" % self.calendarId
+            command = 'echo "... has just been created with the URL ' + public_url + '." | mail -s "New Google calendar" marv42@gmail.com'
             os.system(command)
 
         # call updateOneGoogleCalendar
@@ -282,34 +289,32 @@ class CreateAndUpdateGoogleCalendar:
         # we don't have to check if we have got a valid URL --
         # updateOneGoogleCalendar will check this
 
-        updateObject = UpdateOneGoogleCalendar(self.ffindrHash, self.url, self.service)
+        update_object = UpdateOneGoogleCalendar(self.ffindrHash, self.url, self.service)
 
-        updateSuccessful = updateObject.Run()
-        logging.info("(debug with: 'updateOneGoogleCalendar.py -t %s %s %s')" % (self.ffindrHash, self.url, self.service))
-        if not updateSuccessful == 0:
+        update_successful = update_object.Run()
+        logging.info(
+            "(debug with: 'updateOneGoogleCalendar.py -t %s %s %s')" % (self.ffindrHash, self.url, self.service))
+        if not update_successful == 0:
             logging.info("... failed")
             return json.dumps({'result': 'NULL', 'error': 'Creation successful but updating failed'})
-
 
         # get the calendar URL
         ######################
 
-        return json.dumps({'error': 'NULL', 'result': publicUrl})
+        return json.dumps({'error': 'NULL', 'result': public_url})
 
 
-
-def Usage():
-    print "Usage : %s [-d] <ffindr hash> <UC URL> " % os.path.basename(__file__)
-    print
-    print "Available hashes:"
+def usage():
+    print("Usage : %s [-d] <ffindr hash> <UC URL> " % os.path.basename(__file__))
+    print()
+    print("Available hashes:")
 
     xml = './google-calendar.xml'
-    sock = urllib.urlopen(xml)
-    print sock.read()
+    sock = urlopen(xml)
+    print(sock.read())
     sock.close()
 
     return 0, ''
-
 
 
 def main():
@@ -318,31 +323,27 @@ def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], "dh")
     except getopt.GetoptError:
-        print "Unknown option"
-        Usage()
+        print("Unknown option")
+        usage()
         sys.exit(5)
 
     for o, a in opts:
         if o in ("-h", "--help"):
-            Usage()
+            usage()
             sys.exit()
 
     if not len(args) == 2:
-        print "Wrong number of arguments"
-        print Usage()
+        print("Wrong number of arguments")
+        print(usage())
         sys.exit(5)
 
-
-    mainObject = CreateAndUpdateGoogleCalendar(args[0], args[1])
-
+    main_object = CreateAndUpdateGoogleCalendar(args[0], args[1])
 
     for o, a in opts:
-        if o in ("-d"):
-            mainObject.SetDebugMode()
+        if o in "-d":
+            main_object.set_debug_mode()
 
-
-    mainObject.Run()
-
+    main_object.run()
 
 
 if __name__ == '__main__':

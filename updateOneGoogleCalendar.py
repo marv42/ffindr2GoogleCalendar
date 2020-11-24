@@ -18,7 +18,6 @@
 
 __author__ = 'marv42@gmail.com'
 
-
 from ffindrHash2GoogleId import ffindrHash2GoogleId
 from authentication import Authentication
 from utils import unHtmlify
@@ -28,7 +27,7 @@ import getopt
 import logging
 import os
 import sys
-import urllib2
+from urllib.request import urlopen
 import json
 
 
@@ -52,11 +51,10 @@ class UpdateOneGoogleCalendar:
         self.url = url
         self.service = service
 
-
     def SetTestingMode(self):
         self.testingMode = True
         authentication = Authentication()
-        self.service = authentication.getService()
+        self.service = authentication.get_service()
 
     def Run(self):
         """Updates a calendar in the WFDF Google calendar account with the
@@ -78,92 +76,89 @@ class UpdateOneGoogleCalendar:
         103 = error: unknown ffindr stream URL
         104 = error: parse error, inconsistent amount of elements"""
 
-
         if self.testingMode:
-            sock = urllib2.urlopen(self.url)
-            file("contentOfInputFfindrUrl.xml", 'w').write(sock.read())
+            sock = urlopen(self.url)
+            with open("contentOfInputFfindrUrl.xml", 'w') as f:
+                print(sock.read(), file=f)
             sock.close()
             logging.info("see contentOfInputFfindrUrl.xml")
 
         logging.info(self.url)
 
-
         # get calendar query object
         ###########################
 
-        idDetermination = ffindrHash2GoogleId(self.ffindrHash, self.service)
+        id_determination = ffindrHash2GoogleId(self.ffindrHash, self.service)
 
-
-        self.calendarId = idDetermination.Run()
+        self.calendarId = id_determination.run()
 
         if self.calendarId == '':
             logging.error("error getting calendar ID")
             return 102
 
-        logging.info(self.calendarId) #, "=> URL"
+        logging.info(self.calendarId)  # , "=> URL"
 
-        #calendar = self.service.calendarList().get(calendarId=self.calendarId).execute()
-        #print json.dumps(calendar, sort_keys=True, indent=4); sys.exit(0)
-
+        # calendar = self.service.calendarList().get(calendarId=self.calendarId).execute()
+        # print json.dumps(calendar, sort_keys=True, indent=4); sys.exit(0)
 
         # parse the content of the ffindr RSS stream
         ############################################
 
-        feed = urllib2.urlopen(self.url)
+        feed = urlopen(self.url)
         dom = parse(feed)
-
 
         # for every event
         #################
 
         today = datetime.today()
-        pageToken = None
+        page_token = None
         events = []
         while True:
-            eventPage = self.service.events().list(calendarId=self.calendarId,
-                                                   pageToken=pageToken,
-                                                   timeMin=today.strftime('%Y-%m-%dT%H:%M:%S-00:00')).execute()
-            for event in eventPage['items']:
+            event_page = self.service.events().list(calendarId=self.calendarId,
+                                                    pageToken=page_token,
+                                                    timeMin=today.strftime('%Y-%m-%dT%H:%M:%S-00:00')).execute()
+            for event in event_page['items']:
                 events.append(event)
-            pageToken = eventPage.get('nextPageToken')
-            if not pageToken:
+            page_token = event_page.get('nextPageToken')
+            if not page_token:
                 break
 
+        title = u''
+        link = u''
+        description = u''
+        author = u''
+        category = u''
+        location = u''
+        date_start = u''
+        date_end = u''
+        geo_lat = u''
+        geo_long = u''
         # firstChild == "rss", firstChild.firstChild == <text>, firstChild.childNodes[1] == "channel"
         for itemNode in dom.firstChild.childNodes[1].childNodes:
             if itemNode.nodeName == "item":
-
-                author      = u''
-                category    = u''
-                description = u''
-                geoLat      = u''
-                geoLong     = u''
-
                 for node in itemNode.childNodes:
                     if node.nodeName == "title":
-                        title       = node.childNodes[0].nodeValue
+                        title = node.childNodes[0].nodeValue
                     if node.nodeName == "link":
-                        link        = node.childNodes[0].nodeValue
+                        link = node.childNodes[0].nodeValue
                     if node.nodeName == "description" and len(node.childNodes) > 0:
                         description = node.childNodes[0].nodeValue
                     if node.nodeName == "author":
-                        author      = node.childNodes[0].nodeValue
+                        author = node.childNodes[0].nodeValue
                     if node.nodeName == "category":
-                        if category is not u'':
+                        if len(category) != 0:
                             category += ", "
-                        category    += node.childNodes[0].nodeValue
+                        category += node.childNodes[0].nodeValue
                     if node.nodeName == "location" and len(node.childNodes) > 0:
-                        location    = node.childNodes[0].nodeValue
+                        location = node.childNodes[0].nodeValue
                     if node.nodeName == "dateStart":
-                        dateStart   = node.childNodes[0].nodeValue
+                        date_start = node.childNodes[0].nodeValue
                     if node.nodeName == "dateEnd":
-                        dateEnd     = node.childNodes[0].nodeValue
+                        date_end = node.childNodes[0].nodeValue
                     if node.nodeName == "geo:lat":
-                        geoLat      = node.childNodes[0].nodeValue
+                        geo_lat = node.childNodes[0].nodeValue
                     if node.nodeName == "geo:long":
-                        geoLong     = node.childNodes[0].nodeValue
-
-
+                        geo_long = node.childNodes[0].nodeValue
 
                 # assign the values of the ffindr stream to the calendar properties
                 ###################################################################
@@ -177,33 +172,29 @@ class UpdateOneGoogleCalendar:
                     continue
 
                 # strip
-
-                title       = title.strip()
-                link        = link.strip()
-                #tags        = tags.strip()
+                title = title.strip()
+                link = link.strip()
                 description = description.strip()
-                #content     = content.strip()
-                author      = author.strip()
-                category    = category.strip()
-                dateStart   = dateStart.strip()
-                dateEnd     = dateEnd.strip()
-                location    = location.strip()
-                geoLat      = geoLat.strip()
-                geoLong     = geoLong.strip()
+                author = author.strip()
+                category = category.strip()
+                date_start = date_start.strip()
+                date_end = date_end.strip()
+                location = location.strip()
+                geo_lat = geo_lat.strip()
+                geo_long = geo_long.strip()
 
                 location = unHtmlify(location)
-                #print location
 
                 # date calculation
 
-                [year, month, day] = str(dateStart).split('-')
-                startDate = date(int(year), int(month), int(day))
-                [year, month, day] = str(dateEnd).split('-')
-                endDate = date(int(year), int(month), int(day))
+                [year, month, day] = str(date_start).split('-')
+                start_date = date(int(year), int(month), int(day))
+                [year, month, day] = str(date_end).split('-')
+                end_date = date(int(year), int(month), int(day))
                 # end += 1 day (or Google takes two days events as one day)
-                endDate += timedelta(1)
-                dateEnd = endDate.isoformat()
-                if (endDate - startDate).days > 7: # 1 week
+                end_date += timedelta(1)
+                date_end = end_date.isoformat()
+                if (end_date - start_date).days > 7:  # 1 week
                     continue
 
                 # description: link, (tags,) author, location
@@ -213,80 +204,72 @@ class UpdateOneGoogleCalendar:
 
                 description += u'\n\n\n   *** ffindr tags ***'
 
-                if link is not '':
+                if len(link) != 0:
                     description += u'\n\nWebsite: ' + link
 
                 # + u'\n\Tags: ' + tags
 
-                if author is not '':
+                if len(author) != 0:
                     description += u'\n\nAuthor: ' + author
 
-                locationForDescription = ''
-                if location is not '':
-                    locationForDescription = location
+                location_for_description = ''
+                if len(location) != 0:
+                    location_for_description = location
 
-                if locationForDescription is not '':
-                    description += u'\n\nLocation: ' + locationForDescription
+                if len(location_for_description) != 0:
+                    description += u'\n\nLocation: ' + location_for_description
 
-                if category is not '':
+                if len(category) != 0:
                     description += u'\n\nCategory: ' + category
 
-                if geoLat is not '' and geoLong is not '':
+                location_for_where = u''
+                if len(geo_lat) != 0 and len(geo_long) != 0:
                     # remove "(" and ")" or the map link won't work
-                    locationForDescription = locationForDescription.replace('(', u'')
-                    locationForDescription = locationForDescription.replace(')', u'')
-                    locationForWhere = geoLat + u', ' + geoLong + u' (' + locationForDescription + u')'
+                    location_for_description = location_for_description.replace('(', u'')
+                    location_for_description = location_for_description.replace(')', u'')
+                    location_for_where = geo_lat + u', ' + geo_long + u' (' + location_for_description + u')'
 
                 logging.info("event '%s'" % title.encode('utf-8'))
 
                 # check if event already exists
                 ###############################
 
-                eventIsAlreadyInCalendar = False
+                event_is_already_in_calendar = False
 
                 for event in events:
-                    eventTitle = event.get('source')
-                    if eventTitle is not None:
-                        eventTitle = event.get('title')
-                    if eventTitle is None:
-                        eventTitle = event.get('summary')
-                    if eventTitle == title:
-                        eventIsAlreadyInCalendar = True
+                    event_title = event.get('source')
+                    if event_title is not None:
+                        event_title = event.get('title')
+                    if event_title is None:
+                        event_title = event.get('summary')
+                    if event_title == title:
+                        event_is_already_in_calendar = True
                         break
 
-                if eventIsAlreadyInCalendar:
+                if event_is_already_in_calendar:
                     logging.info("... was already in the calendar")
                     continue
-
 
                 # insert event
                 ##############
 
                 logging.info("### NEW ###")
-                #print type(Title); return
+                # print type(Title); return
 
-                source = {}
-                source['url'] = link
-                source['title'] = title
-                event = {}
-                event['source'] = source
-                event['start'] = { 'date': dateStart }
-                event['end'] = { 'date': dateEnd }
-                event['location'] = locationForWhere
-                event['description'] = description
-                event['summary'] = title
-                newEvent = self.service.events().insert(calendarId=self.calendarId, body=event).execute()
-
+                source = {'url': link, 'title': title}
+                event = {'source': source, 'start': {'date': date_start}, 'end': {'date': date_end},
+                         'location': location_for_where, 'description': description, 'summary': title}
+                self.service.events().insert(calendarId=self.calendarId, body=event).execute()
 
         # delete duplicate events
         #########################
 
-        def deleteEvent(id):
+        def delete_event(id):
             logging.info("deleting event %s" % id)
             # TODO geht ned
             response = self.service.events().delete(calendarId=self.calendarId,
                                                     eventId=id)
-            if json.loads(response.to_json())['body'] != None:
+            if json.loads(response.to_json())['body'] is not None:
                 logging.info("... failed")
 
         for event1 in events:
@@ -294,34 +277,31 @@ class UpdateOneGoogleCalendar:
             for event2 in events:
                 summary2 = event2.get('summary')
                 if summary1 == summary2 and \
-                       event1['id'] != event2['id']:
+                        event1['id'] != event2['id']:
                     logging.info(summary1)
-                    deleteEvent(event1['id'])
-                    deleteEvent(event2['id'])
+                    delete_event(event1['id'])
+                    delete_event(event2['id'])
                     break
 
         return 0
 
 
+def usage():
+    print("Usage : %s [-t] <ffindr hash> <UC URL> <service>" % os.path.basename(__file__))
+    print("-t: testing mode, print raw xml ")
 
-def Usage():
-
-    print "Usage : %s [-t] <ffindr hash> <UC URL> <service>" % os.path.basename(__file__)
-    print "-t: testing mode, print raw xml "
-
-    print
-    print "Available calendars:"
-    for line in file("google-calendar.json"):
-        if "hash" in line:
-            print line,
+    print()
+    print("Available calendars:")
+    with open("google-calendar.json") as f:
+        for line in f:
+            if "hash" in line:
+                print(line, end=' ')
 
     return
 
 
-
 def main():
     """Runs the application."""
-
 
     # get parameter
     ###############
@@ -329,33 +309,28 @@ def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], "ht")
     except getopt.GetoptError as e:
-        Usage()
+        usage()
         sys.exit(str(e))
 
     for o, a in opts:
         if o in ("-h", "--help"):
-            Usage()
+            usage()
             sys.exit()
 
     if not len(args) == 3:
-        Usage()
+        usage()
         sys.exit("Wrong number of arguments")
 
-
-    mainObject = UpdateOneGoogleCalendar(args[0], args[1], args[2])
-
+    main_object = UpdateOneGoogleCalendar(args[0], args[1], args[2])
 
     for o, a in opts:
-        if o in ("-t"):
-            mainObject.SetTestingMode()
+        if o in "-t":
+            main_object.SetTestingMode()
 
-
-    mainObject.Run()
-
+    main_object.Run()
 
 
 if __name__ == '__main__':
-
     logging.basicConfig(level=logging.INFO,
                         filename='updateAllGoogleCalendars.log',
                         format='[%(asctime)s %(filename)s] %(message)s',

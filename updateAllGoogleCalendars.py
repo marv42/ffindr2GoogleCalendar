@@ -18,8 +18,7 @@
 #     You should have received a copy of the GNU General Public License
 #     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-__author__ = 'marv42@gmail.com'
-
+__author__ = 'marv42+updateAllGoogleCalendars@gmail.com'
 
 from authentication import Authentication
 from createAndUpdateGoogleCalendar import CreateAndUpdateGoogleCalendar
@@ -27,73 +26,64 @@ import datetime
 import getopt
 import json
 import logging
-#import logging.handlers
 import os
-import posix
 import sys
-import time
-import urllib
-
 
 
 class UpdateAllGoogleCalendars:
 
-    def Run(self):
+    def run(self):
         """Get all ffindr hashes from ffindr and call updateOneGoogleCalendar
         for each of them"""
 
         authentication = Authentication()
-        self.service = authentication.getService()
+        self.service = authentication.get_service()
 
-        jsonFile = os.path.dirname(os.path.abspath(__file__)) + '/google-calendar.json'
-
+        json_file = os.path.dirname(os.path.abspath(__file__)) + '/google-calendar.json'
 
         # parse the content of the RSS stream
         ############################################
 
-        logging.info(jsonFile)
+        logging.info(json_file)
 
-        jsonObject = json.load(open(jsonFile))
-
+        json_object = json.load(open(json_file))
 
         # for all calendars
         ###################
 
-        filters = jsonObject["filters"]
+        filters = json_object["filters"]
         for f in range(len(filters)):
 
             logging.info("'%s'" % filters[f]["name"])
 
-            createAndUpdate = CreateAndUpdateGoogleCalendar(
+            create_and_update = CreateAndUpdateGoogleCalendar(
                 filters[f]["hash"], filters[f]["uc"], self.service)
 
-            returnJson = json.loads(createAndUpdate.Run())
-            #print returnJson
+            return_json = json.loads(create_and_update.run())
+            # print return_json
 
-            if returnJson['error'] != 'NULL':
+            if return_json['error'] != 'NULL':
                 logging.info("failed, waiting one minute ...")
 
                 # wait one minute and try again
                 ###############################
 
                 t = datetime.datetime.now()
-                while t + datetime.timedelta(0,0,0,0,1) > datetime.datetime.now():
+                while t + datetime.timedelta(0, 0, 0, 0, 1) > datetime.datetime.now():
                     continue
 
                 logging.info("... trying once more ...")
 
-                returnJson = json.loads(createAndUpdate.Run())
+                return_json = json.loads(create_and_update.run())
 
-                if returnJson['error'] != 'NULL':
-                    logging.info( "... failed")
+                if return_json['error'] != 'NULL':
+                    logging.info("... failed")
                     return 1
 
 
-def Usage():
-
-    print "Usage : %s" % os.path.basename(__file__)
+def usage():
+    print("Usage : %s" % os.path.basename(__file__))
     return
-
 
 
 def main():
@@ -102,31 +92,26 @@ def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], "h")
     except getopt.GetoptError:
-        print "Unknown option"
-        Usage()
+        print("Unknown option")
+        usage()
         sys.exit(1)
 
     if not len(args) == 0:
-        print "Wrong number of arguments"
-        Usage()
+        print("Wrong number of arguments")
+        usage()
         sys.exit(1)
 
-
-    mainObject = UpdateAllGoogleCalendars()
-
+    main_object = UpdateAllGoogleCalendars()
 
     for o, a in opts:
         if o in ("-h", "--help"):
-            Usage()
+            usage()
             sys.exit()
 
-
-    return mainObject.Run()
-
+    return main_object.run()
 
 
 if __name__ == '__main__':
-
     logging.basicConfig(level=logging.INFO,
                         filename='updateAllGoogleCalendars.log',
                         format='[%(asctime)s %(filename)s] %(message)s',

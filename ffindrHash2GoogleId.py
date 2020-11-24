@@ -16,13 +16,14 @@
 #     You should have received a copy of the GNU General Public License
 #     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-__author__ = 'marv42@gmail.com'
+__author__ = 'marv42+updateAllGoogleCalendars@gmail.com'
 
-
+import getopt
 import logging
+import os
 import re
 # import json
-
+import sys
 
 
 class ffindrHash2GoogleId:
@@ -43,8 +44,7 @@ class ffindrHash2GoogleId:
         self.inputFfindrHash = ffindrHash
         self.service = service
 
-
-    def Run(self):
+    def run(self):
         """Takes a ffindr RSS stream URL or a stream hash as an argument.
 
         Returns the calendar ID or '' if no ID found matching the hash or
@@ -52,33 +52,30 @@ class ffindrHash2GoogleId:
 
         logging.info(self.inputFfindrHash)
 
-
         # search the hash in all calendars
         ##################################
 
-        calendarList = self.service.calendarList().list().execute()
-        #print json.dumps(calendarList, sort_keys=True, indent=4); sys.exit(0)
+        calendar_list = self.service.calendarList().list().execute()
+        # print json.dumps(calendar_list, sort_keys=True, indent=4); sys.exit(0)
 
-        patternHash = re.compile(self.inputFfindrHash)
+        pattern_hash = re.compile(self.inputFfindrHash)
 
-        calendarId = ''
+        calendar_id = ''
 
-        for entry in calendarList['items']:
-            if patternHash.search(str(entry['description'])):
-                calendarId = entry['id']
-                logging.info("-> %s" % calendarId)
+        for entry in calendar_list['items']:
+            if 'description' in entry and pattern_hash.search(str(entry['description'])):
+                calendar_id = entry['id']
+                logging.info("-> %s" % calendar_id)
                 break
 
-        if calendarId == '':
+        if calendar_id == '':
             logging.warning("No calendar found with this ffindr hash")
 
-        return calendarId
-
+        return calendar_id
 
 
 def Usage():
-    print "Usage : %s <ffindr hash>" % os.path.basename(__file__)
-
+    print("Usage : %s <ffindr hash>" % os.path.basename(__file__))
 
 
 def main():
@@ -90,17 +87,16 @@ def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], "h")
     except getopt.GetoptError:
-        print "Unknown option"
+        print("Unknown option")
         Usage()
         sys.exit(1)
 
     if not len(args) == 2:
-        print "Wrong number of arguments"
+        print("Wrong number of arguments")
         Usage()
         sys.exit(1)
 
-    mainObject = ffindrHash2GoogleId(args[0], args[1])
-
+    main_object = ffindrHash2GoogleId(args[0], args[1])
 
     for o, a in opts:
         if o in ("-h", "--help"):
@@ -110,9 +106,7 @@ def main():
     if not len(args) == 1:
         sys.exit(1)
 
-
-    mainObject.Run()
-
+    main_object.run()
 
 
 if __name__ == '__main__':

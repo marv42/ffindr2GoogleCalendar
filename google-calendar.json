@@ -4,9 +4,9 @@
     "filters": [
         { "name": "Ultimate Tournaments in Europe",
           "hash": "234f4d47703d0",
-          "uc"  : "https://ultimatecentral.com/en_us/e/view/rss/per_page/10/type/tournament;hat+tournament/location/Europe/distance/2000/distance_unit/mi?ffindr=1" },
+          "uc"  : "https://ultimatecentral.com/en_us/e/view/rss/type/tournament;hat+tournament/surface/grass;turf;hard;venue;outdoor_venue;indoor_turf/location/Europe/distance/2000/distance_unit/mi?ffindr=1" },
         { "name": "Beach Tournaments",
           "hash": "234cc141edebb",
-          "uc"  : "http://ultimatecentral.com/en_US/e/view/rss/per_page/50/surface/sand?ffindr=1" }
+          "uc"  : "https://ultimatecentral.com/en_US/e/view/rss/surface/sand?ffindr=1" }
     ]
 }

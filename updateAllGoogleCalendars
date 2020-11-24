@@ -12,8 +12,8 @@ DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 
 LOG_FILE=$DIR/updateAllGoogleCalendars.log
 
-date > $LOG_FILE
 cd $DIR
-python updateAllGoogleCalendars.py &>> $LOG_FILE
+date > $LOG_FILE
+python updateAllGoogleCalendars.py & >> $LOG_FILE
 
-#[ $? -ne 0 ] && echo "see <a href=\"file://$LOG_FILE\">log file</a> for details" | mail -s "updateAllGoogleCalendars.py failed" marv42@gmail.com
+[ $? -ne 0 ] && echo "see <a href=\"file://$LOG_FILE\">log file</a> for details" | mail -s "updateAllGoogleCalendars.py failed" marv42+updateAllGoogleCalendars@gmail.com
