@@ -19,11 +19,13 @@
 __author__ = 'marv42+updateAllGoogleCalendars@gmail.com'
 
 import gflags
-from credentials import client_id, client_secret, developer_key
+from googleapiclient.discovery import build
+from httplib2 import Http
 from oauth2client.client import OAuth2WebServerFlow
 from oauth2client.file import Storage
-from httplib2 import Http
-from googleapiclient.discovery import build
+from oauth2client.tools import run_flow
+
+from credentials import client_id, client_secret, developer_key
 
 
 class Authentication:
@@ -31,16 +33,13 @@ class Authentication:
     @staticmethod
     def get_service():
         """return an authenticated calendar service"""
-
         flow = OAuth2WebServerFlow(client_id, client_secret,
-            scope='https://www.googleapis.com/auth/calendar')
+                                   scope='https://www.googleapis.com/auth/calendar')
         gflags.DEFINE_boolean('auth_local_webserver', False, 'disable the local server feature')
-
         storage = Storage('storage.dat')
         credentials = storage.get()
         if not credentials or credentials.invalid:
-            credentials = run(flow, storage)
-
+            credentials = run_flow(flow, storage)
         credentials.authorize(Http())
         return build(serviceName='calendar', version='v3', http=credentials.authorize(Http()),
-                     developer_key=developer_key)
+                     developerKey=developer_key)
