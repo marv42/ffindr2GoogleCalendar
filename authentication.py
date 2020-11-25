@@ -35,7 +35,7 @@ class Authentication:
         """return an authenticated calendar service"""
         flow = OAuth2WebServerFlow(client_id, client_secret,
                                    scope='https://www.googleapis.com/auth/calendar')
-        gflags.DEFINE_boolean('auth_local_webserver', False, 'disable the local server feature')
+        # gflags.DEFINE_boolean('auth_local_webserver', False, 'disable the local server feature')
         storage = Storage('storage.dat')
         credentials = storage.get()
         if not credentials or credentials.invalid:
