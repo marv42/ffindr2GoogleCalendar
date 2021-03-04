@@ -36,6 +36,11 @@ import gdata.calendar
 from authentication import Authentication
 from updateOneGoogleCalendar import UpdateOneGoogleCalendar
 
+FFINDR_JSON = 'google-calendar.json'
+ROLE_READ = 'http://schemas.google.com/gCal/2005#read'
+CALENDAR_PREFIX_URL = "http://www.google.com/calendar/"
+OWN_CALENDARS = f"{CALENDAR_PREFIX_URL}feeds/default/owncalendars/full/"
+
 
 class FfindrChannelContentHandler(ContentHandler):
 
@@ -89,7 +94,8 @@ class CreateAndUpdateGoogleCalendar:
         self.service = Authentication().get_service()
         self.calendarId = -1
 
-    # TODO self.service.close()
+    def __del__(self):
+        self.service.close()
 
     def insert_calendar(self,
                         title='Standard Ultimate Central Stream Calendar Title',
@@ -114,15 +120,13 @@ class CreateAndUpdateGoogleCalendar:
             calendar.hidden = gdata.calendar.Hidden(value='true')
         else:
             calendar.hidden = gdata.calendar.Hidden(value='false')
-        new_calendar = self.calClient.InsertCalendar(new_calendar=calendar)
-        return new_calendar
+        return self.calClient.InsertCalendar(new_calendar=calendar)
 
     def create_acl_rule(self):
         rule = gdata.calendar.CalendarAclEntry()
         rule.scope = gdata.calendar.Scope(scope_type='default')  # all users, no value
-        role_value = 'http://schemas.google.com/gCal/2005#read'
-        rule.role = gdata.calendar.Role(value=role_value)
-        acl_url = 'http://www.google.com/calendar/feeds/%s/acl/full' % self.calendarId
+        rule.role = gdata.calendar.Role(value=ROLE_READ)
+        acl_url = f"{CALENDAR_PREFIX_URL}feeds/{self.calendarId}/acl/full"
         self.calClient.InsertAclEntry(rule, acl_url)
 
     def run(self):
@@ -148,32 +152,22 @@ class CreateAndUpdateGoogleCalendar:
         if self.url == '':
             logging.error("no url given")
             return json.dumps({'result': 'NULL', 'error': 'No URL given'})
-        # parse the content of the RSS stream
-        # setup XML parser
-        parser = make_parser()
-        # tell the parser we are not interested in XML namespaces
-        parser.setFeature(feature_namespaces, 0)
-        cch = FfindrChannelContentHandler()
-        parser.setContentHandler(cch)
-        parser.setEntityResolver(cch)
-        parser.parse(self.url)
-        calendar_title = cch.get_title()
-        # check if calendar already exists
+        content_handler = FfindrChannelContentHandler()
+        self.parse_rss(content_handler)
         calendar_list = self.service.calendarList().list().execute()
-        google_prefix = "http://www.google.com/calendar/feeds/default/owncalendars/full/"
         pattern_hash = re.compile(self.ffindrHash)
         calendar_existed_already = False
         for entry in calendar_list['items']:
             if 'description' in entry and pattern_hash.search(str(entry['description'])):
                 calendar_existed_already = True
                 self.calendarId = entry['id']
-                self.calendarId = self.calendarId[len(google_prefix):len(self.calendarId)]
+                self.repair_calendar_id()
                 break
-        public_url = "http://www.google.com/calendar/embed?src=%s" % self.calendarId  # rather with GetLink() (?)
+        public_url = f"{CALENDAR_PREFIX_URL}embed?src={self.calendarId}"  # rather with GetLink() (?)
         if not calendar_existed_already:
-            # try to create new calendar
             logging.info("trying to create the Google calendar ...")
             try:
+                calendar_title = content_handler.get_title()
                 new_calendar = self.insert_calendar(title=calendar_title)
             except gdata.service.RequestError as err:
                 if err[0]['status'] == 500:
@@ -197,23 +191,15 @@ class CreateAndUpdateGoogleCalendar:
                 return json.dumps({'result': 'NULL', 'error': 'Google connectivity problems'})
             logging.info("... successful")
             self.calendarId = new_calendar.id.text
-            # set permissions
-            if self.calendarId.startswith(google_prefix):
-                self.calendarId = self.calendarId[len(google_prefix):len(self.calendarId)]
-            else:
-                logging.error("error stripping prefix")
-                return json.dumps({'result': 'NULL',
-                                   'error': 'Couldn\'t determine the calendar ID from the URL (error stripping prefix)'})
-                # because we wouldn't be able to set the permissions with this ID
+            self.repair_calendar_id()
             logging.info("setting permissions / make calendar public ...")
             self.create_acl_rule()  # make calendar public
             # self._CreateAclRule("user@gmail.com")
             # send information mail
-            public_url = "http://www.google.com/calendar/embed?src=%s" % self.calendarId
+            public_url = f"{CALENDAR_PREFIX_URL}embed?src={self.calendarId}"
             command = 'echo "... has just been created with the URL ' + public_url +\
                       '." | mail -s "New Google calendar" marv42+updateAllGoogleCalendars@gmail.com'
             os.system(command)
-        # call updateOneGoogleCalendar
         # we don't have to check if we have got a valid URL --
         # updateOneGoogleCalendar will check this
         update_object = UpdateOneGoogleCalendar(self.ffindrHash, self.url, self.service)
@@ -223,15 +209,25 @@ class CreateAndUpdateGoogleCalendar:
         if not update_successful == 0:
             logging.info("... failed")
             return json.dumps({'result': 'NULL', 'error': 'Creation successful but updating failed'})
-        # get the calendar URL
         return json.dumps({'error': 'NULL', 'result': public_url})
+
+    def parse_rss(self, content_handler):
+        parser = make_parser()
+        parser.setFeature(feature_namespaces, 0)
+        parser.setContentHandler(content_handler)
+        parser.setEntityResolver(content_handler)
+        parser.parse(self.url)
+
+    def repair_calendar_id(self):
+        if self.calendarId.startswith(OWN_CALENDARS):
+            self.calendarId = self.calendarId[len(OWN_CALENDARS):len(self.calendarId)]
 
 
 def usage():
-    print("Usage : %s <ffindr hash> <UC URL> " % os.path.basename(__file__))
+    print(f"Usage : {os.path.basename(__file__)} <ffindr hash> <UC URL>")
     print()
     print("Available hashes:")
-    sock = urlopen('./google-calendar.json')
+    sock = urlopen(f"./{FFINDR_JSON}")
     print(sock.read())
     sock.close()
     return 0, ''

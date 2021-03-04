@@ -22,7 +22,7 @@ __author__ = 'marv42+updateAllGoogleCalendars@gmail.com'
 
 from time import sleep
 
-from createAndUpdateGoogleCalendar import CreateAndUpdateGoogleCalendar
+from createAndUpdateGoogleCalendar import CreateAndUpdateGoogleCalendar, FFINDR_JSON
 from datetime import datetime, timedelta
 import getopt
 import json
@@ -33,42 +33,50 @@ import sys
 
 class UpdateAllGoogleCalendars:
 
-    @staticmethod
-    def run():
-        """Get all ffindr hashes from ffindr and call updateOneGoogleCalendar
-        for each of them"""
-        json_file = os.path.dirname(os.path.abspath(__file__)) + '/google-calendar.json'
-        # parse the content of the RSS stream
+    def __init__(self):
+        self.calendars = []
+
+    def run(self):
+        self.load_ffindr_json()
+        for c in range(len(self.calendars)):
+            a_calendar = self.calendars[c]
+            if not self.update_calendar(a_calendar):
+                return 1
+        return 0
+
+    def load_ffindr_json(self):
+        json_file = os.path.dirname(os.path.abspath(__file__)) + '/' + FFINDR_JSON
         logging.info(json_file)
         json_object = json.load(open(json_file))
-        # for all calendars
-        filters = json_object["filters"]
-        for f in range(len(filters)):
-            logging.info("'%s'" % filters[f]["name"])
-            create_and_update = CreateAndUpdateGoogleCalendar(
-                filters[f]["hash"], filters[f]["uc"])
+        self.calendars = json_object["filters"]
+
+    def update_calendar(self, calendar):
+        logging.info("'%s'" % calendar["name"])
+        create_and_update = CreateAndUpdateGoogleCalendar(calendar["hash"], calendar["uc"])
+        return_json = json.loads(create_and_update.run())
+        if return_json['error'] != 'NULL':
+            logging.info("failed, waiting one minute ...")
+            self.wait_one_minute()
+            logging.info("... trying once more ...")
             return_json = json.loads(create_and_update.run())
             if return_json['error'] != 'NULL':
-                logging.info("failed, waiting one minute ...")
-                # wait one minute and try again
-                t = datetime.now()
-                while t + timedelta(minutes=1) > datetime.now():
-                    sleep(10)
-                logging.info("... trying once more ...")
-                return_json = json.loads(create_and_update.run())
-                if return_json['error'] != 'NULL':
-                    logging.info("... failed")
-                    return 1
-        return 0
+                logging.info("... failed")
+                return False
+        return True
+
+    @staticmethod
+    def wait_one_minute():
+        t0 = datetime.now()
+        while t0 + timedelta(minutes=1) > datetime.now():
+            sleep(10)
 
 
 def usage():
-    print("Usage : %s" % os.path.basename(__file__))
+    print(f"Usage : {os.path.basename(__file__)}")
     return
 
 
 def main():
-    """Runs the application."""
     try:
         opts, args = getopt.getopt(sys.argv[1:], "h")
     except getopt.GetoptError:
@@ -79,12 +87,11 @@ def main():
         print("Wrong number of arguments")
         usage()
         sys.exit(1)
-    main_object = UpdateAllGoogleCalendars()
     for o, a in opts:
         if o in ("-h", "--help"):
             usage()
             sys.exit()
-    return main_object.run()
+    return UpdateAllGoogleCalendars().run()
 
 
 if __name__ == '__main__':
