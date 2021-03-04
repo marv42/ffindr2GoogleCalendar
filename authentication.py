@@ -18,28 +18,48 @@
 
 __author__ = 'marv42+updateAllGoogleCalendars@gmail.com'
 
-import gflags
-from googleapiclient.discovery import build
-from httplib2 import Http
-from oauth2client.client import OAuth2WebServerFlow
-from oauth2client.file import Storage
-from oauth2client.tools import run_flow
+import os
+import pickle
 
-from credentials import client_id, client_secret, developer_key
+from googleapiclient.discovery import build
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+
+
+CLIENT_SECRET_JSON = 'client_secret.json'
+TOKEN_PICKLE = 'token.pickle'
+# SERVICE_ACCOUNT_EMAIL = 'ultimatecentralcalendarservice@fluent-buckeye-285819.iam.gserviceaccount.com'
+# SERVICE_ACCOUNT_FILE = "service_account.json"
+SCOPES = ['https://www.googleapis.com/auth/calendar']
+API_SERVICE_NAME = 'calendar'
+API_VERSION = 'v3'
 
 
 class Authentication:
 
     @staticmethod
     def get_service():
-        """return an authenticated calendar service"""
-        flow = OAuth2WebServerFlow(client_id, client_secret,
-                                   scope='https://www.googleapis.com/auth/calendar')
-        # gflags.DEFINE_boolean('auth_local_webserver', False, 'disable the local server feature')
-        storage = Storage('storage.dat')
-        credentials = storage.get()
-        if not credentials or credentials.invalid:
-            credentials = run_flow(flow, storage)
-        credentials.authorize(Http())
-        return build(serviceName='calendar', version='v3', http=credentials.authorize(Http()),
-                     developerKey=developer_key)
+        creds = Authentication.get_credentials()
+        return build(API_SERVICE_NAME, API_VERSION, credentials=creds, cache_discovery=False)
+
+    @staticmethod
+    def get_credentials():
+        """cf. https://developers.google.com/calendar/quickstart/python"""
+
+        creds = None
+        if os.path.exists(TOKEN_PICKLE):
+            with open(TOKEN_PICKLE, 'rb') as token:
+                creds = pickle.load(token)
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+            else:
+                flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET_JSON, SCOPES)
+                creds = flow.run_local_server(port=0)
+            with open(TOKEN_PICKLE, 'wb') as token:
+                pickle.dump(creds, token)
+        return creds
+
+        # credentials = service_account.Credentials.from_service_account_file(
+        #     SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+        # return credentials.with_subject(SERVICE_ACCOUNT_EMAIL)
