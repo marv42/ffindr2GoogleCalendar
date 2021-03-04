@@ -33,6 +33,7 @@ from xml.sax.handler import feature_namespaces
 import atom
 import gdata.calendar
 
+from Exceptions import UnknownCalendarException
 from authentication import Authentication
 from updateOneGoogleCalendar import UpdateOneGoogleCalendar
 
@@ -152,8 +153,6 @@ class CreateAndUpdateGoogleCalendar:
         if self.url == '':
             logging.error("no url given")
             return json.dumps({'result': 'NULL', 'error': 'No URL given'})
-        content_handler = FfindrChannelContentHandler()
-        self.parse_rss(content_handler)
         calendar_list = self.service.calendarList().list().execute()
         pattern_hash = re.compile(self.ffindrHash)
         calendar_existed_already = False
@@ -167,6 +166,8 @@ class CreateAndUpdateGoogleCalendar:
         if not calendar_existed_already:
             logging.info("trying to create the Google calendar ...")
             try:
+                content_handler = FfindrChannelContentHandler()
+                self.parse_rss(content_handler)
                 calendar_title = content_handler.get_title()
                 new_calendar = self.insert_calendar(title=calendar_title)
             except gdata.service.RequestError as err:
@@ -200,13 +201,9 @@ class CreateAndUpdateGoogleCalendar:
             command = 'echo "... has just been created with the URL ' + public_url +\
                       '." | mail -s "New Google calendar" marv42+updateAllGoogleCalendars@gmail.com'
             os.system(command)
-        # we don't have to check if we have got a valid URL --
-        # updateOneGoogleCalendar will check this
-        update_object = UpdateOneGoogleCalendar(self.ffindrHash, self.url, self.service)
-        update_successful = update_object.Run()
-        logging.info(
-            "(debug with: 'updateOneGoogleCalendar.py -t %s %s %s')" % (self.ffindrHash, self.url, self.service))
-        if not update_successful == 0:
+        try:
+            UpdateOneGoogleCalendar(self.ffindrHash, self.url, self.service).run()
+        except UnknownCalendarException:
             logging.info("... failed")
             return json.dumps({'result': 'NULL', 'error': 'Creation successful but updating failed'})
         return json.dumps({'error': 'NULL', 'result': public_url})

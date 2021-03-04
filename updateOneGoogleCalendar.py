@@ -18,9 +18,10 @@
 
 __author__ = 'marv42@gmail.com'
 
+from Exceptions import UnknownCalendarException
 from ffindrHash2GoogleId import ffindrHash2GoogleId
 from authentication import Authentication
-from utils import unHtmlify
+from utils import un_htmlify
 from xml.dom.minidom import parse
 from datetime import datetime, date, timedelta
 import getopt
@@ -51,12 +52,12 @@ class UpdateOneGoogleCalendar:
         self.url = url
         self.service = service
 
-    def SetTestingMode(self):
+    def set_testing_mode(self):
         self.testingMode = True
         authentication = Authentication()
         self.service = authentication.get_service()
 
-    def Run(self):
+    def run(self):
         """Updates a calendar in the WFDF Google calendar account with the
         events of a ffindr (www.ffindr.com) RSS stream.
 
@@ -66,15 +67,7 @@ class UpdateOneGoogleCalendar:
         *** Updating events is not yet implemented ***
 
         Workaround: delete non-up-to-date events by hand and they will be
-        inserted correctly the next time.
-
-        return values:
-        0 = successfully updated calendar
-        1 -- 100 = number of events the update of which failed
-        101 = error: wrong number of parameters
-        102 = error: unknown calendar ID or Google connectivity problems
-        103 = error: unknown ffindr stream URL
-        104 = error: parse error, inconsistent amount of elements"""
+        inserted correctly the next time."""
 
         if self.testingMode:
             sock = urlopen(self.url)
@@ -85,43 +78,9 @@ class UpdateOneGoogleCalendar:
 
         logging.info(self.url)
 
-        # get calendar query object
-        ###########################
+        self.set_calendar_id()
 
-        id_determination = ffindrHash2GoogleId(self.ffindrHash, self.service)
-
-        self.calendarId = id_determination.run()
-
-        if self.calendarId == '':
-            logging.error("error getting calendar ID")
-            return 102
-
-        logging.info(self.calendarId)  # , "=> URL"
-
-        # calendar = self.service.calendarList().get(calendarId=self.calendarId).execute()
-        # print json.dumps(calendar, sort_keys=True, indent=4); sys.exit(0)
-
-        # parse the content of the ffindr RSS stream
-        ############################################
-
-        feed = urlopen(self.url)
-        dom = parse(feed)
-
-        # for every event
-        #################
-
-        today = datetime.today()
-        page_token = None
-        events = []
-        while True:
-            event_page = self.service.events().list(calendarId=self.calendarId,
-                                                    pageToken=page_token,
-                                                    timeMin=today.strftime('%Y-%m-%dT%H:%M:%S-00:00')).execute()
-            for event in event_page['items']:
-                events.append(event)
-            page_token = event_page.get('nextPageToken')
-            if not page_token:
-                break
+        events = self.get_events_in_calendar()
 
         title = u''
         link = u''
@@ -133,137 +92,112 @@ class UpdateOneGoogleCalendar:
         date_end = u''
         geo_lat = u''
         geo_long = u''
+        feed = urlopen(self.url)
+        dom = parse(feed)
         # firstChild == "rss", firstChild.firstChild == <text>, firstChild.childNodes[1] == "channel"
         for itemNode in dom.firstChild.childNodes[1].childNodes:
-            if itemNode.nodeName == "item":
-                for node in itemNode.childNodes:
-                    if node.nodeName == "title":
-                        title = node.childNodes[0].nodeValue
-                    if node.nodeName == "link":
-                        link = node.childNodes[0].nodeValue
-                    if node.nodeName == "description" and len(node.childNodes) > 0:
-                        description = node.childNodes[0].nodeValue
-                    if node.nodeName == "author":
-                        author = node.childNodes[0].nodeValue
-                    if node.nodeName == "category":
-                        if len(category) != 0:
-                            category += ", "
-                        category += node.childNodes[0].nodeValue
-                    if node.nodeName == "location" and len(node.childNodes) > 0:
-                        location = node.childNodes[0].nodeValue
-                    if node.nodeName == "dateStart":
-                        date_start = node.childNodes[0].nodeValue
-                    if node.nodeName == "dateEnd":
-                        date_end = node.childNodes[0].nodeValue
-                    if node.nodeName == "geo:lat":
-                        geo_lat = node.childNodes[0].nodeValue
-                    if node.nodeName == "geo:long":
-                        geo_long = node.childNodes[0].nodeValue
+            if itemNode.nodeName != "item":
+                continue
+            for node in itemNode.childNodes:
+                if node.nodeName == "title":
+                    title = node.childNodes[0].nodeValue
+                if node.nodeName == "link":
+                    link = node.childNodes[0].nodeValue
+                if node.nodeName == "description" and len(node.childNodes) > 0:
+                    description = node.childNodes[0].nodeValue
+                if node.nodeName == "author":
+                    author = node.childNodes[0].nodeValue
+                if node.nodeName == "category":
+                    if len(category) != 0:
+                        category += ", "
+                    category += node.childNodes[0].nodeValue
+                if node.nodeName == "location" and len(node.childNodes) > 0:
+                    location = node.childNodes[0].nodeValue
+                if node.nodeName == "dateStart":
+                    date_start = node.childNodes[0].nodeValue
+                if node.nodeName == "dateEnd":
+                    date_end = node.childNodes[0].nodeValue
+                if node.nodeName == "geo:lat":
+                    geo_lat = node.childNodes[0].nodeValue
+                if node.nodeName == "geo:long":
+                    geo_long = node.childNodes[0].nodeValue
 
-                # assign the values of the ffindr stream to the calendar properties
-                ###################################################################
+            if 'DELETED' in title:
+                continue
+            if title == '<incomplete>':
+                logging.warning("Update of one event failed because it was incomplete")
+                continue
 
-                # set up the gd properties with the ffindr values
+            title = title.strip()
+            link = link.strip()
+            description = description.strip()
+            author = author.strip()
+            category = category.strip()
+            date_start = date_start.strip()
+            date_end = date_end.strip()
+            location = location.strip()
+            geo_lat = geo_lat.strip()
+            geo_long = geo_long.strip()
 
-                if 'DELETED' in title:
-                    continue
-                if title == '<incomplete>':
-                    logging.warning("Update of one event failed because it was incomplete")
-                    continue
+            location = un_htmlify(location)
 
-                # strip
-                title = title.strip()
-                link = link.strip()
-                description = description.strip()
-                author = author.strip()
-                category = category.strip()
-                date_start = date_start.strip()
-                date_end = date_end.strip()
-                location = location.strip()
-                geo_lat = geo_lat.strip()
-                geo_long = geo_long.strip()
+            [year, month, day] = str(date_start).split('-')
+            start_date = date(int(year), int(month), int(day))
+            [year, month, day] = str(date_end).split('-')
+            end_date = date(int(year), int(month), int(day))
+            # end += 1 day (or Google takes two days events as one day)
+            end_date += timedelta(1)
+            date_end = end_date.isoformat()
+            if (end_date - start_date).days > 7:
+                continue
 
-                location = unHtmlify(location)
+            # description: link, (tags,) author, location
+            if description.endswith('...'):
+                description += u'\n\n(truncated, for the complete description see the ffindr website)'
 
-                # date calculation
+            description += u'\n\n\n   *** ffindr tags ***'
 
-                [year, month, day] = str(date_start).split('-')
-                start_date = date(int(year), int(month), int(day))
-                [year, month, day] = str(date_end).split('-')
-                end_date = date(int(year), int(month), int(day))
-                # end += 1 day (or Google takes two days events as one day)
-                end_date += timedelta(1)
-                date_end = end_date.isoformat()
-                if (end_date - start_date).days > 7:  # 1 week
-                    continue
+            if len(link) != 0:
+                description += u'\n\nWebsite: ' + link
 
-                # description: link, (tags,) author, location
+            # + u'\n\Tags: ' + tags
 
-                if description.endswith('...'):
-                    description += u'\n\n(truncated, for the complete description see the ffindr website)'
+            if len(author) != 0:
+                description += u'\n\nAuthor: ' + author
 
-                description += u'\n\n\n   *** ffindr tags ***'
+            location_for_description = ''
+            if len(location) != 0:
+                location_for_description = location
 
-                if len(link) != 0:
-                    description += u'\n\nWebsite: ' + link
+            if len(location_for_description) != 0:
+                description += u'\n\nLocation: ' + location_for_description
 
-                # + u'\n\Tags: ' + tags
+            if len(category) != 0:
+                description += u'\n\nCategory: ' + category
 
-                if len(author) != 0:
-                    description += u'\n\nAuthor: ' + author
+            location_for_where = u''
+            if len(geo_lat) != 0 and len(geo_long) != 0:
+                # remove "(" and ")" or the map link won't work
+                location_for_description = location_for_description.replace('(', u'')
+                location_for_description = location_for_description.replace(')', u'')
+                location_for_where = geo_lat + u', ' + geo_long + u' (' + location_for_description + u')'
 
-                location_for_description = ''
-                if len(location) != 0:
-                    location_for_description = location
+            logging.info("event '%s'" % title.encode('utf-8'))
 
-                if len(location_for_description) != 0:
-                    description += u'\n\nLocation: ' + location_for_description
+            if self.event_is_already_in_calendar(events, title):
+                logging.info("... was already in the calendar")
+                continue
 
-                if len(category) != 0:
-                    description += u'\n\nCategory: ' + category
+            logging.info("### NEW ###")
 
-                location_for_where = u''
-                if len(geo_lat) != 0 and len(geo_long) != 0:
-                    # remove "(" and ")" or the map link won't work
-                    location_for_description = location_for_description.replace('(', u'')
-                    location_for_description = location_for_description.replace(')', u'')
-                    location_for_where = geo_lat + u', ' + geo_long + u' (' + location_for_description + u')'
+            source = {'url': link, 'title': title}
+            event = {'source': source, 'start': {'date': date_start}, 'end': {'date': date_end},
+                     'location': location_for_where, 'description': description, 'summary': title}
+            self.service.events().insert(calendarId=self.calendarId, body=event).execute()
 
-                logging.info("event '%s'" % title.encode('utf-8'))
+        self.delete_duplicate_events(events)
 
-                # check if event already exists
-                ###############################
-
-                event_is_already_in_calendar = False
-
-                for event in events:
-                    event_title = event.get('source')
-                    if event_title is not None:
-                        event_title = event.get('title')
-                    if event_title is None:
-                        event_title = event.get('summary')
-                    if event_title == title:
-                        event_is_already_in_calendar = True
-                        break
-
-                if event_is_already_in_calendar:
-                    logging.info("... was already in the calendar")
-                    continue
-
-                # insert event
-                ##############
-
-                logging.info("### NEW ###")
-                # print type(Title); return
-
-                source = {'url': link, 'title': title}
-                event = {'source': source, 'start': {'date': date_start}, 'end': {'date': date_end},
-                         'location': location_for_where, 'description': description, 'summary': title}
-                self.service.events().insert(calendarId=self.calendarId, body=event).execute()
-
-        # delete duplicate events
-        #########################
-
+    def delete_duplicate_events(self, events):
         def delete_event(id):
             logging.info("deleting event %s" % id)
             # TODO geht ned
@@ -283,13 +217,47 @@ class UpdateOneGoogleCalendar:
                     delete_event(event2['id'])
                     break
 
-        return 0
+    @staticmethod
+    def event_is_already_in_calendar(events, title):
+        it_is = False
+        for event in events:
+            event_title = event.get('source')
+            if event_title is not None:
+                event_title = event.get('title')
+            if event_title is None:
+                event_title = event.get('summary')
+            if event_title == title:
+                it_is = True
+                break
+        return it_is
+
+    def set_calendar_id(self):
+        id_determination = ffindrHash2GoogleId(self.ffindrHash, self.service)
+        self.calendarId = id_determination.run()
+        if self.calendarId == '':
+            logging.error("error getting calendar ID")
+            raise UnknownCalendarException("unknown calendar ID or Google connectivity problems")
+        logging.info(self.calendarId)  # , "=> URL"
+
+    def get_events_in_calendar(self):
+        events = []
+        today = datetime.today()
+        page_token = None
+        while True:
+            event_page = self.service.events().list(calendarId=self.calendarId,
+                                                    pageToken=page_token,
+                                                    timeMin=today.strftime('%Y-%m-%dT%H:%M:%S-00:00')).execute()
+            for event in event_page['items']:
+                events.append(event)
+            page_token = event_page.get('nextPageToken')
+            if not page_token:
+                break
+        return events
 
 
 def usage():
     print("Usage : %s [-t] <ffindr hash> <UC URL> <service>" % os.path.basename(__file__))
     print("-t: testing mode, print raw xml ")
-
     print()
     print("Available calendars:")
     with open("google-calendar.json") as f:
@@ -297,37 +265,25 @@ def usage():
             if "hash" in line:
                 print(line, end=' ')
 
-    return
-
 
 def main():
-    """Runs the application."""
-
-    # get parameter
-    ###############
-
     try:
         opts, args = getopt.getopt(sys.argv[1:], "ht")
     except getopt.GetoptError as e:
         usage()
         sys.exit(str(e))
-
     for o, a in opts:
         if o in ("-h", "--help"):
             usage()
             sys.exit()
-
     if not len(args) == 3:
         usage()
         sys.exit("Wrong number of arguments")
-
     main_object = UpdateOneGoogleCalendar(args[0], args[1], args[2])
-
     for o, a in opts:
         if o in "-t":
-            main_object.SetTestingMode()
-
-    main_object.Run()
+            main_object.set_testing_mode()
+    main_object.run()
 
 
 if __name__ == '__main__':

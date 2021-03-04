@@ -1,0 +1,2 @@
+class UnknownCalendarException(Exception):
+    pass
