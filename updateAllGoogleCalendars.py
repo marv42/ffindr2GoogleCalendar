@@ -22,6 +22,7 @@ __author__ = 'marv42+updateAllGoogleCalendars@gmail.com'
 
 from time import sleep
 
+from Exceptions import CalendarUpdateFailed
 from createAndUpdateGoogleCalendar import CreateAndUpdateGoogleCalendar, FFINDR_JSON
 from datetime import datetime, timedelta
 import getopt
@@ -51,16 +52,18 @@ class UpdateAllGoogleCalendars:
         self.calendars = json_object["filters"]
 
     def update_calendar(self, calendar):
-        logging.info("'%s'" % calendar["name"])
+        logging.info(f"{calendar['name']}")
         create_and_update = CreateAndUpdateGoogleCalendar(calendar["hash"], calendar["uc"])
-        return_json = json.loads(create_and_update.run())
-        if return_json['error'] != 'NULL':
+        try:
+            create_and_update.run()
+        except CalendarUpdateFailed:
             logging.info("failed, waiting one minute ...")
             self.wait_one_minute()
             logging.info("... trying once more ...")
-            return_json = json.loads(create_and_update.run())
-            if return_json['error'] != 'NULL':
-                logging.info("... failed")
+            try:
+                create_and_update.run()
+            except CalendarUpdateFailed:
+                logging.info("... failed again")
                 return False
         return True
 

@@ -22,25 +22,12 @@ import getopt
 import logging
 import os
 import re
-# import json
 import sys
 
 
 class ffindrHash2GoogleId:
 
     def __init__(self, ffindrHash, service):
-        """Creates a CalendarService and provides ClientLogin auth details to
-        it.  The email and password are required arguments for ClientLogin.
-        The CalendarService automatically sets the service to be 'cl', as is
-        appropriate for calendar.  The 'source' defined below is an arbitrary
-        string, but should be used to reference your name or the name of your
-        organization, the app name and version, with '-' between each of the
-        three values.  The account_type is specified to authenticate either
-        Google Accounts or Google Apps accounts.  See gdata.service or
-        http://code.google.com/apis/accounts/AuthForInstalledApps.html for
-        more info on ClientLogin.  NOTE: ClientLogin should only be used for
-        installed applications and not for multi-user web applications."""
-
         self.inputFfindrHash = ffindrHash
         self.service = service
 
@@ -51,30 +38,24 @@ class ffindrHash2GoogleId:
         if some error occurred"""
 
         logging.info(self.inputFfindrHash)
+        return self.get_calendar_id()
 
-        # search the hash in all calendars
-        ##################################
-
+    def get_calendar_id(self):
         calendar_list = self.service.calendarList().list().execute()
-        # print json.dumps(calendar_list, sort_keys=True, indent=4); sys.exit(0)
-
-        pattern_hash = re.compile(self.inputFfindrHash)
-
-        calendar_id = ''
-
         for entry in calendar_list['items']:
-            if 'description' in entry and pattern_hash.search(str(entry['description'])):
+            if self.is_hash_in_description(entry):
                 calendar_id = entry['id']
-                logging.info("-> %s" % calendar_id)
-                break
+                logging.info(f"-> {calendar_id}")
+                return calendar_id
+        logging.warning("No calendar found with this ffindr hash")
+        return ''
 
-        if calendar_id == '':
-            logging.warning("No calendar found with this ffindr hash")
+    def is_hash_in_description(self, entry):
+        pattern_hash = re.compile(self.inputFfindrHash)
+        return 'description' in entry and pattern_hash.search(str(entry['description']))
 
-        return calendar_id
 
-
-def Usage():
+def usage():
     print("Usage : %s <ffindr hash>" % os.path.basename(__file__))
 
 
@@ -88,19 +69,19 @@ def main():
         opts, args = getopt.getopt(sys.argv[1:], "h")
     except getopt.GetoptError:
         print("Unknown option")
-        Usage()
+        usage()
         sys.exit(1)
 
     if not len(args) == 2:
         print("Wrong number of arguments")
-        Usage()
+        usage()
         sys.exit(1)
 
     main_object = ffindrHash2GoogleId(args[0], args[1])
 
     for o, a in opts:
         if o in ("-h", "--help"):
-            Usage()
+            usage()
             sys.exit()
 
     if not len(args) == 1:

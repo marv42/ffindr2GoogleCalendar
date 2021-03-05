@@ -18,10 +18,11 @@
 
 __author__ = 'marv42@gmail.com'
 
-from Exceptions import UnknownCalendarException
+import html
+
+from Exceptions import UnknownCalendar
 from ffindrHash2GoogleId import ffindrHash2GoogleId
 from authentication import Authentication
-from utils import un_htmlify
 from xml.dom.minidom import parse
 from datetime import datetime, date, timedelta
 import getopt
@@ -35,18 +36,6 @@ import json
 class UpdateOneGoogleCalendar:
 
     def __init__(self, hash, url, service):
-        """Creates a CalendarService and provides ClientLogin auth details to
-        it.  The email and password are required arguments for ClientLogin.
-        The CalendarService automatically sets the service to be 'cl', as is
-        appropriate for calendar.  The 'source' defined below is an arbitrary
-        string, but should be used to reference your name or the name of your
-        organization, the app name and version, with '-' between each of the
-        three values.  The account_type is specified to authenticate either
-        Google Accounts or Google Apps accounts.  See gdata.service or
-        http://code.google.com/apis/accounts/AuthForInstalledApps.html for
-        more info on ClientLogin.  NOTE: ClientLogin should only be used for
-        installed applications and not for multi-user web applications."""
-
         self.testingMode = False
         self.ffindrHash = hash
         self.url = url
@@ -77,9 +66,7 @@ class UpdateOneGoogleCalendar:
             logging.info("see contentOfInputFfindrUrl.xml")
 
         logging.info(self.url)
-
         self.set_calendar_id()
-
         events = self.get_events_in_calendar()
 
         title = u''
@@ -139,7 +126,7 @@ class UpdateOneGoogleCalendar:
             geo_lat = geo_lat.strip()
             geo_long = geo_long.strip()
 
-            location = un_htmlify(location)
+            location = html.unescape(location)
 
             [year, month, day] = str(date_start).split('-')
             start_date = date(int(year), int(month), int(day))
@@ -182,14 +169,12 @@ class UpdateOneGoogleCalendar:
                 location_for_description = location_for_description.replace(')', u'')
                 location_for_where = geo_lat + u', ' + geo_long + u' (' + location_for_description + u')'
 
-            logging.info("event '%s'" % title.encode('utf-8'))
-
+            logging.info(f"event {title.encode('utf-8')}")
             if self.event_is_already_in_calendar(events, title):
                 logging.info("... was already in the calendar")
                 continue
 
             logging.info("### NEW ###")
-
             source = {'url': link, 'title': title}
             event = {'source': source, 'start': {'date': date_start}, 'end': {'date': date_end},
                      'location': location_for_where, 'description': description, 'summary': title}
@@ -236,7 +221,7 @@ class UpdateOneGoogleCalendar:
         self.calendarId = id_determination.run()
         if self.calendarId == '':
             logging.error("error getting calendar ID")
-            raise UnknownCalendarException("unknown calendar ID or Google connectivity problems")
+            raise UnknownCalendar("unknown calendar ID or Google connectivity problems")
         logging.info(self.calendarId)  # , "=> URL"
 
     def get_events_in_calendar(self):
