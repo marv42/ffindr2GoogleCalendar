@@ -68,7 +68,7 @@ class CreateAndUpdateGoogleCalendar:
         if not self.calendar_already_exists():
             self.create_calendar()
         try:
-            UpdateOneGoogleCalendar(self.ffindrHash, self.url, self.service).run()
+            UpdateOneGoogleCalendar(self.service).run(self.ffindrHash, self.url)
         except UnknownCalendar:
             logging.info("... failed")
             raise CalendarUpdateFailed("Creation successful but updating failed")
@@ -157,10 +157,10 @@ def main():
     """Runs the application."""
     try:
         opts, args = getopt.getopt(sys.argv[1:], "h")
-    except getopt.GetoptError:
+    except getopt.GetoptError as e:
         print("Unknown option")
         usage()
-        sys.exit(5)
+        sys.exit(str(e))
     for o, a in opts:
         if o in ("-h", "--help"):
             usage()
@@ -168,7 +168,7 @@ def main():
     if len(args) != 2:
         print("Wrong number of arguments")
         print(usage())
-        sys.exit(5)
+        sys.exit(1)
     CreateAndUpdateGoogleCalendar(args[0], args[1]).run()
 
 
