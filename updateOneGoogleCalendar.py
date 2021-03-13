@@ -20,7 +20,8 @@ __author__ = 'marv42+updateAllGoogleCalendars@gmail.com'
 
 import html
 
-from EventData import EventData
+from EventData import EventData, TITLE, LINK, DESCRIPTION, AUTHOR, CATEGORY, LOCATION, DATE_START, DATE_END, GEO_LAT, \
+    GEO_LONG
 from FfindrHash2GoogleId import FfindrHash2GoogleId
 from xml.dom.minidom import parse
 from datetime import datetime, date, timedelta
@@ -30,6 +31,23 @@ import os
 import sys
 from urllib.request import urlopen
 import json
+
+DATE_SEP = '-'
+DATE_FORMAT = '%Y-%m-%dT%H:%M:%S-00:00'
+
+DELETED = 'DELETED'
+INCOMPLETE = '<incomplete>'
+NEXT_PAGE_TOKEN = 'nextPageToken'
+ITEMS = 'items'
+ITEM = "item"
+URL = 'url'
+DATE = 'date'
+SOURCE = 'source'
+START = 'start'
+END = 'end'
+SUMMARY = 'summary'
+ID = 'id'
+BODY = 'body'
 
 MAX_EVENT_DURATION_DAYS = 8
 
@@ -41,14 +59,10 @@ class UpdateOneGoogleCalendar:
         self.calendarId = ''
 
     def run(self, ffindr_hash, url):
-        """Updates a calendar in the WFDF Google calendar account with the
-        events of a ffindr (www.ffindr.com) RSS stream.
-
-        "Updating a calendar" means, inserting the events the titles of which
-        don't yet exist in the calendar.
+        """Updates a calendar with the events of an UltimateCentral RSS stream,
+        i.e. insert the events the titles of which don't yet exist in the calendar.
 
         *** Updating events is not yet implemented ***
-
         Workaround: delete non-up-to-date events by hand and they will be
         inserted correctly the next time."""
 
@@ -67,29 +81,26 @@ class UpdateOneGoogleCalendar:
         dom = parse(feed)
         # firstChild == "rss", firstChild.firstChild == <text>, firstChild.childNodes[1] == "channel"
         for itemNode in dom.firstChild.childNodes[1].childNodes:
-            if itemNode.nodeName != "item":
+            if itemNode.nodeName != ITEM:
                 continue
             ed = self.get_event_data(itemNode.childNodes)
-            if 'DELETED' in ed.title:
+            if DELETED in ed.title:
                 continue
-            if ed.title == '<incomplete>':
+            if ed.title == INCOMPLETE:
                 logging.warning("Update of one event failed because it was incomplete")
                 continue
             ed = EventData.strip(ed)
-            ed.location = html.unescape(ed.location)
             duration = self.get_fixed_duration(ed)
             if duration.days > MAX_EVENT_DURATION_DAYS:
                 continue
-            location_for_where = self.build_description(ed)
+            self.fix_end_date(ed)
             logging.info(f"event {ed.title.encode('utf-8')}")
             if self.event_is_already_in_calendar(existing_events, ed.title):
                 logging.info("... was already in the calendar")
                 continue
-            logging.info("### NEW ###")
-            source = {'url': ed.link, 'title': ed.title}
-            event = {'source': source, 'start': {'date': ed.date_start}, 'end': {'date': ed.date_end},
-                     'location': location_for_where, 'description': ed.description, 'summary': ed.title}
-            self.service.events().insert(calendarId=self.calendarId, body=event).execute()
+            self.build_description(ed)
+            location = self.get_location_for_event(ed)
+            self.insert_event(ed, location)
 
     @staticmethod
     def build_description(ed):
@@ -102,90 +113,127 @@ class UpdateOneGoogleCalendar:
         # + u'\n\Tags: ' + tags
         if len(ed.author) != 0:
             ed.description += u'\n\nAuthor: ' + ed.author
-        location_for_description = ''
-        if len(ed.location) != 0:
-            location_for_description = ed.location
+        ed.location = html.unescape(ed.location)
+        location_for_description = UpdateOneGoogleCalendar.get_location_for_description(ed)
         if len(location_for_description) != 0:
             ed.description += u'\n\nLocation: ' + location_for_description
         if len(ed.category) != 0:
             ed.description += u'\n\nCategory: ' + ed.category
-        location_for_where = u''
+
+    @staticmethod
+    def get_location_for_description(ed):
+        location = ''
+        if len(ed.location) != 0:
+            location = ed.location
+        return location
+
+    def get_location_for_event(self, ed):
+        location = u''
         if len(ed.geo_lat) != 0 and len(ed.geo_long) != 0:
+            location_for_description = self.get_location_for_description(ed)
             # remove "(" and ")" or the map link won't work
             location_for_description = location_for_description.replace('(', u'')
             location_for_description = location_for_description.replace(')', u'')
-            location_for_where = ed.geo_lat + u', ' + ed.geo_long + u' (' + location_for_description + u')'
-        return location_for_where
+            location = ed.geo_lat + u', ' + ed.geo_long + u' (' + location_for_description + u')'
+        return location
+
+    def insert_event(self, ed, location):
+        logging.info("### NEW ###")
+        source = {URL: ed.link, TITLE: ed.title}
+        start = {DATE: ed.date_start}
+        end = {DATE: ed.date_end}
+        event = {SOURCE: source, START: start, END: end, LOCATION: location,
+                 DESCRIPTION: ed.description, SUMMARY: ed.title}
+        self.service.events().insert(calendarId=self.calendarId, body=event).execute()
 
     @staticmethod
     def get_fixed_duration(event_data):
-        [year, month, day] = str(event_data.date_start).split('-')
-        start_date = date(int(year), int(month), int(day))
-        [year, month, day] = str(event_data.date_end).split('-')
-        end_date = date(int(year), int(month), int(day))
-        # end += 1 day (or Google takes two days events as one day)
-        end_date += timedelta(1)
-        event_data.date_end = end_date.isoformat()
+        start_date = UpdateOneGoogleCalendar.get_start_date(event_data.date_start)
+        end_date = UpdateOneGoogleCalendar.get_fixed_end_date(event_data.date_end)
         return end_date - start_date
+
+    @staticmethod
+    def get_start_date(date_start):
+        [year, month, day] = str(date_start).split(DATE_SEP)
+        start_date = date(int(year), int(month), int(day))
+        return start_date
+
+    @staticmethod
+    def get_fixed_end_date(date_end):
+        [year, month, day] = str(date_end).split(DATE_SEP)
+        end_date = date(int(year), int(month), int(day))
+        # end += 1 day or Google takes two days events as one day
+        end_date += timedelta(1)
+        return end_date
+
+    @staticmethod
+    def fix_end_date(event_data):
+        end_date = UpdateOneGoogleCalendar.get_fixed_end_date(event_data.date_end)
+        event_data.date_end = end_date.isoformat()
 
     @staticmethod
     def get_event_data(child_nodes):
         event_data = EventData()
         for node in child_nodes:
-            if node.nodeName == "title":
-                event_data.title = node.childNodes[0].nodeValue
-            if node.nodeName == "link":
-                event_data.link = node.childNodes[0].nodeValue
-            if node.nodeName == "description" and len(node.childNodes) > 0:
-                event_data.description = node.childNodes[0].nodeValue
-            if node.nodeName == "author":
-                event_data.author = node.childNodes[0].nodeValue
-            if node.nodeName == "category":
-                if len(event_data.category) != 0:
-                    event_data.category += ", "
-                event_data.category += node.childNodes[0].nodeValue
-            if node.nodeName == "location" and len(node.childNodes) > 0:
-                event_data.location = node.childNodes[0].nodeValue
-            if node.nodeName == "dateStart":
-                event_data.date_start = node.childNodes[0].nodeValue
-            if node.nodeName == "dateEnd":
-                event_data.date_end = node.childNodes[0].nodeValue
-            if node.nodeName == "geo:lat":
-                event_data.geo_lat = node.childNodes[0].nodeValue
-            if node.nodeName == "geo:long":
-                event_data.geo_long = node.childNodes[0].nodeValue
+            UpdateOneGoogleCalendar.set_event_data(event_data, node)
         return event_data
+
+    @staticmethod
+    def set_event_data(event_data, node):
+        node_name = node.nodeName
+        if node_name == TITLE:
+            event_data.title = node.childNodes[0].nodeValue
+        if node_name == LINK:
+            event_data.link = node.childNodes[0].nodeValue
+        if node_name == DESCRIPTION and len(node.childNodes) > 0:
+            event_data.description = node.childNodes[0].nodeValue
+        if node_name == AUTHOR:
+            event_data.author = node.childNodes[0].nodeValue
+        if node_name == CATEGORY:
+            if len(event_data.category) != 0:
+                event_data.category += ", "
+            event_data.category += node.childNodes[0].nodeValue
+        if node_name == LOCATION and len(node.childNodes) > 0:
+            event_data.location = node.childNodes[0].nodeValue
+        if node_name == DATE_START:
+            event_data.date_start = node.childNodes[0].nodeValue
+        if node_name == DATE_END:
+            event_data.date_end = node.childNodes[0].nodeValue
+        if node_name == GEO_LAT:
+            event_data.geo_lat = node.childNodes[0].nodeValue
+        if node_name == GEO_LONG:
+            event_data.geo_long = node.childNodes[0].nodeValue
 
     def delete_duplicate_events(self):
         events = self.get_events_in_calendar()
         for event1 in events:
-            summary1 = event1.get('summary')
+            summary1 = event1.get(SUMMARY)
             for event2 in events:
-                summary2 = event2.get('summary')
+                summary2 = event2.get(SUMMARY)
                 if summary1 == summary2 and \
-                        event1['id'] != event2['id']:
+                        event1[ID] != event2[ID]:
                     logging.info(summary1)
-                    self.delete_event(event1['id'])
-                    self.delete_event(event2['id'])
+                    self.delete_event(event1[ID])
+                    self.delete_event(event2[ID])
                     break
 
-    def delete_event(self, id):
-        logging.info("deleting event %s" % id)
+    def delete_event(self, event_id):
+        logging.info("deleting event %s" % event_id)
         # TODO geht ned
-        response = self.service.events().delete(calendarId=self.calendarId, eventId=id)
-        if json.loads(response.to_json())['body'] is not None:
+        response = self.service.events().delete(calendarId=self.calendarId, eventId=event_id)
+        if json.loads(response.to_json())[BODY] is not None:
             logging.info("... failed")
 
     @staticmethod
     def event_is_already_in_calendar(existing_events, title):
         it_is = False
         for event in existing_events:
-            event_title = event.get('source')
-            if event_title is not None:
-                event_title = event.get('title')
-            if event_title is None:
-                event_title = event.get('summary')
-            if event_title == title:
+            existing_event_title = event.get(SOURCE)
+            if existing_event_title is not None:
+                existing_event_title = event.get(TITLE)
+            if existing_event_title is None:
+                existing_event_title = event.get(SUMMARY)
+            if existing_event_title == title:
                 it_is = True
                 break
         return it_is
@@ -197,10 +245,10 @@ class UpdateOneGoogleCalendar:
         while True:
             event_page = self.service.events().list(calendarId=self.calendarId,
                                                     pageToken=page_token,
-                                                    timeMin=today.strftime('%Y-%m-%dT%H:%M:%S-00:00')).execute()
-            for event in event_page['items']:
+                                                    timeMin=today.strftime(DATE_FORMAT)).execute()
+            for event in event_page[ITEMS]:
                 events.append(event)
-            page_token = event_page.get('nextPageToken')
+            page_token = event_page.get(NEXT_PAGE_TOKEN)
             if not page_token:
                 break
         return events
