@@ -31,12 +31,13 @@ from xml.sax.handler import feature_namespaces
 import atom
 import gdata.calendar
 
+from Constants import CALENDAR_JSON
 from Exceptions import UnknownCalendar, CalendarUpdateFailed
 from FfindrChannelContentHandler import FfindrChannelContentHandler
 from authentication import Authentication
 from updateOneGoogleCalendar import UpdateOneGoogleCalendar
+from FfindrHash2GoogleId import GOOGLE_CALENDAR_DESCRIPTION, GOOGLE_CALENDAR_ITEMS
 
-FFINDR_JSON = 'google-calendar.json'
 ROLE_READ = 'http://schemas.google.com/gCal/2005#read'
 CALENDAR_PREFIX_URL = "http://www.google.com/calendar/"
 OWN_CALENDARS = f"{CALENDAR_PREFIX_URL}feeds/default/owncalendars/full/"
@@ -75,14 +76,15 @@ class CreateAndUpdateGoogleCalendar:
 
     def calendar_already_exists(self):
         calendar_list = self.service.calendarList().list().execute()
-        for entry in calendar_list['items']:
+        for entry in calendar_list[GOOGLE_CALENDAR_ITEMS]:
             if self.is_hash_in_description(entry):
                 return True
         return False
 
     def is_hash_in_description(self, entry):
         pattern_hash = re.compile(self.ffindrHash)
-        return 'description' in entry and pattern_hash.search(str(entry['description']))
+        return GOOGLE_CALENDAR_DESCRIPTION in entry and \
+               pattern_hash.search(str(entry[GOOGLE_CALENDAR_DESCRIPTION]))
 
     def parse_rss(self, content_handler):
         parser = make_parser()
@@ -147,7 +149,7 @@ def usage():
     print(f"Usage : {os.path.basename(__file__)} <ffindr hash> <UC URL>")
     print()
     print("Available hashes:")
-    sock = urlopen(f"./{FFINDR_JSON}")
+    sock = urlopen(f"./{CALENDAR_JSON}")
     print(sock.read())
     sock.close()
     return 0, ''

@@ -1,5 +1,7 @@
 from xml.sax.handler import ContentHandler
 
+from Constants import DOM_ITEM, DOM_TITLE
+
 
 class FfindrChannelContentHandler(ContentHandler):
 
@@ -9,11 +11,11 @@ class FfindrChannelContentHandler(ContentHandler):
         self.inTitleContent = False
 
     def startElement(self, name, attrs):
-        if name == 'item':
+        if name == DOM_ITEM:
             # exclude item content
             self.inChannelContent = False
         elif self.inChannelContent:
-            if name == 'title':
+            if name == DOM_TITLE:
                 self.inTitleContent = True
                 self.title = ""
 
@@ -26,7 +28,7 @@ class FfindrChannelContentHandler(ContentHandler):
             self.title = self.title + ch
 
     def endElement(self, name):
-        if name == 'title':
+        if name == DOM_TITLE:
             self.inTitleContent = False
 
     def get_title(self):

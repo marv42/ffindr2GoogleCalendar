@@ -21,6 +21,7 @@ __author__ = 'marv42+updateAllGoogleCalendars@gmail.com'
 import logging
 import re
 
+from Constants import GOOGLE_CALENDAR_ITEMS, GOOGLE_CALENDAR_ID, GOOGLE_CALENDAR_DESCRIPTION
 from Exceptions import UnknownCalendar
 
 
@@ -29,9 +30,9 @@ class FfindrHash2GoogleId:
     def get_calendar_id(self, ffindr_hash, service):
         logging.info(ffindr_hash)
         calendar_list = service.calendarList().list().execute()
-        for entry in calendar_list['items']:
+        for entry in calendar_list[GOOGLE_CALENDAR_ITEMS]:
             if self.is_hash_in_description(ffindr_hash, entry):
-                calendar_id = entry['id']
+                calendar_id = entry[GOOGLE_CALENDAR_ID]
                 logging.info(f"-> {calendar_id}")
                 return calendar_id
         raise UnknownCalendar("No calendar found with this ffindr hash")
@@ -39,4 +40,5 @@ class FfindrHash2GoogleId:
     @staticmethod
     def is_hash_in_description(ffindr_hash, entry):
         pattern_hash = re.compile(ffindr_hash)
-        return 'description' in entry and pattern_hash.search(str(entry['description']))
+        return GOOGLE_CALENDAR_DESCRIPTION in entry and \
+               pattern_hash.search(str(entry[GOOGLE_CALENDAR_DESCRIPTION]))

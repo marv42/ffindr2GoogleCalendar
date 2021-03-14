@@ -1,15 +1,3 @@
-TITLE = "title"
-LINK = "link"
-DESCRIPTION = "description"
-AUTHOR = "author"
-CATEGORY = "category"
-DATE_START = "dateStart"
-DATE_END = "dateEnd"
-LOCATION = "location"
-GEO_LAT = "geo:lat"
-GEO_LONG = "geo:long"
-
-
 class EventData:
     title = u''
     link = u''
