@@ -22,4 +22,4 @@ echo SOURCE=$SOURCE >> $LOG_FILE
 cd $DIR
 python3.8 updateAllGoogleCalendars.py 2>&1 >> $LOG_FILE
 
-[ $? -ne 0 ] && echo "see <a href=\"file://$LOG_FILE\">log file</a> for details" | mail -s "updateAllGoogleCalendars.py failed" marv42+updateAllGoogleCalendars@gmail.com
+[ $? -ne 0 ] && echo "see <a href=\"file://$LOG_FILE\">log file</a> for details" | mail -s "updateAllGoogleCalendars.py failed" marv42+updateAllGoogleCalendars@gmail.com < /dev/null
