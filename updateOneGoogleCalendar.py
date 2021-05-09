@@ -85,6 +85,7 @@ class UpdateOneGoogleCalendar:
             ed = EventData.strip(ed)
             duration = self.get_fixed_duration(ed)
             if duration.days > MAX_EVENT_DURATION_DAYS:
+                logging.info(f"Not inserting event '{ed.title.encode('utf-8')}' because it is longer than {MAX_EVENT_DURATION_DAYS} days")
                 continue
             self.fix_end_date(ed)
             logging.info(f"event {ed.title.encode('utf-8')}")
@@ -123,11 +124,13 @@ class UpdateOneGoogleCalendar:
     def get_location_for_event(self, ed):
         location = u''
         if len(ed.geo_lat) != 0 and len(ed.geo_long) != 0:
+            location = ed.geo_lat + u', ' + ed.geo_long
             location_for_description = self.get_location_for_description(ed)
-            # remove "(" and ")" or the map link won't work
-            location_for_description = location_for_description.replace('(', u'')
-            location_for_description = location_for_description.replace(')', u'')
-            location = ed.geo_lat + u', ' + ed.geo_long + u' (' + location_for_description + u')'
+            if len(location_for_description) > 0:
+                # remove "(" and ")" or the map link won't work
+                location_for_description = location_for_description.replace('(', u'')
+                location_for_description = location_for_description.replace(')', u'')
+                location += u' (' + location_for_description + u')'
         return location
 
     def insert_event(self, ed, location):
