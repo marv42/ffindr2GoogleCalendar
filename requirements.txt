@@ -41,5 +41,5 @@ six==1.15.0
 storage==0.0.4.3
 tlslite-ng==0.7.5
 uritemplate==3.0.1
-urllib3==1.26.2
+urllib3==1.26.5
 Werkzeug==1.0.1
