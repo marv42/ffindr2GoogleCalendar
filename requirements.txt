@@ -2,8 +2,7 @@ cachetools==4.2.2
 certifi==2021.5.30
 chardet==4.0.0
 ecdsa==0.17.0
-gdata==2.0.18
-gdata-python3==3.0.1
+# install gdata with: ./venv/bin/pip install -e git+https://github.com/dvska/gdata-python3#egg=gdata
 google-api-core==1.30.0
 google-api-python-client==2.11.0
 google-auth==1.32.1
