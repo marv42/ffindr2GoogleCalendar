@@ -20,6 +20,7 @@ date >> $LOG_FILE
 echo DIR=$DIR >> $LOG_FILE
 echo SOURCE=$SOURCE >> $LOG_FILE
 
-$DIR/venv/bin/python3 $DIR/updateAllGoogleCalendars.py 2>&1 >> $LOG_FILE
+cd $DIR
+./venv/bin/python3 ./updateAllGoogleCalendars.py 2>&1 >> $LOG_FILE
 
 [ $? -ne 0 ] && echo "see <a href=\"file://$LOG_FILE\">log file</a> for details" | mail -s "updateAllGoogleCalendars.py failed" marv42+updateAllGoogleCalendars@gmail.com < /dev/null
