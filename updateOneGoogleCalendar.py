@@ -99,9 +99,11 @@ class UpdateOneGoogleCalendar:
     @staticmethod
     def build_description(ed):
         # description: link, (tags,) author, location
+        if ed.description.endswith('&hellip;'):
+            ed.description.replace('&hellip;', u'...')
         if ed.description.endswith('...'):
-            ed.description += u'\n\n(truncated, for the complete description see the ffindr website)'
-        ed.description += u'\n\n\n   *** ffindr tags ***'
+            ed.description += u'\n\n(truncated, for the complete description see the website)'
+        ed.description += u'\n\n\n   *** tags ***'
         if len(ed.link) != 0:
             ed.description += u'\n\nWebsite: ' + ed.link
         # + u'\n\Tags: ' + tags
