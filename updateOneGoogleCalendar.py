@@ -20,6 +20,8 @@ __author__ = 'marv42+updateAllGoogleCalendars@gmail.com'
 
 import html
 
+import requests
+
 from Constants import CALENDAR_JSON, CALENDAR_JSON_HASH, DOM_ITEM, GOOGLE_CALENDAR_URL, GOOGLE_CALENDAR_TITLE, \
     GOOGLE_CALENDAR_DATE, GOOGLE_CALENDAR_SOURCE, GOOGLE_CALENDAR_START, GOOGLE_CALENDAR_END, GOOGLE_CALENDAR_LOCATION, \
     GOOGLE_CALENDAR_DESCRIPTION, GOOGLE_CALENDAR_SUMMARY, DOM_TITLE, DOM_LINK, DOM_DESCRIPTION, DOM_AUTHOR, \
@@ -33,7 +35,6 @@ import getopt
 import logging
 import os
 import sys
-from urllib.request import urlopen
 import json
 
 DATE_SEP = '-'
@@ -70,8 +71,8 @@ class UpdateOneGoogleCalendar:
 
     def insert_events_into_calendar(self, url):
         existing_events = self.get_events_in_calendar()
-        feed = urlopen(url)
-        dom = parse(feed)
+        response = requests.get(url, headers = {'User-Agent': 'Mozilla/5.0'})
+        dom = parse(response.text)
         # firstChild == "rss", firstChild.firstChild == <text>, firstChild.childNodes[1] == "channel"
         for itemNode in dom.firstChild.childNodes[1].childNodes:
             if itemNode.nodeName != DOM_ITEM:
