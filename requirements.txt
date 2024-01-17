@@ -25,4 +25,4 @@ rsa==4.7.2
 six==1.16.0
 tlslite-ng==0.7.6
 uritemplate==3.0.1
-urllib3==1.26.17
+urllib3==1.26.18
