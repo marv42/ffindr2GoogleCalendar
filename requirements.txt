@@ -10,7 +10,7 @@ google-auth-httplib2==0.1.0
 google-auth-oauthlib==0.4.4
 googleapis-common-protos==1.53.0
 httplib2==0.19.1
-idna==2.10
+idna==3.7
 lxml==4.9.1
 oauthlib==3.2.2
 packaging==20.9
